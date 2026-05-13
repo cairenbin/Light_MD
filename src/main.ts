@@ -1,18 +1,57 @@
 import DOMPurify from "dompurify";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { marked } from "marked";
 import "./styles.css";
 
 const DRAFT_KEY = "light-md-editor:draft";
 const TITLE_KEY = "light-md-editor:title";
 const THEME_KEY = "light-md-editor:theme";
-const EXPLORER_KEY = "light-md-editor:explorer-open";
-const FONT_SIZE_KEY = "light-md-editor:font-size";
+const SIDEBAR_KEY = "light-md-editor:sidebar-open";
+const ZOOM_KEY = "light-md-editor:zoom-percent";
 const DEFAULT_ZOOM_PERCENT = 100;
 const MIN_ZOOM_PERCENT = 80;
 const MAX_ZOOM_PERCENT = 140;
 const ZOOM_STEP = 5;
+
 type ViewMode = "write" | "split" | "preview";
+type ThemeMode = "light" | "dark";
+
+type OpenFile = {
+  id: string;
+  name: string;
+  content: string;
+  nativePath: string | null;
+  isDirty: boolean;
+};
+
+type EditorState = {
+  content: string;
+  fileName: string;
+  nativePath: string | null;
+  isDirty: boolean;
+  mode: ViewMode;
+  theme: ThemeMode;
+  isSidebarOpen: boolean;
+  openFiles: OpenFile[];
+  activeFileId: string;
+  zoomPercent: number;
+};
+
+type PendingCloseRequest = {
+  fileId: string;
+};
+
+type TauriMarkdownFile = {
+  path: string;
+  name: string;
+  content: string;
+};
+
+type TauriSavedMarkdownFile = {
+  path: string;
+  name: string;
+};
 
 const starterMarkdown = `# Untitled
 
@@ -37,51 +76,16 @@ marked.use({
   breaks: false
 });
 
-type EditorState = {
-  content: string;
-  fileName: string;
-  nativePath: string | null;
-  isDirty: boolean;
-  mode: ViewMode;
-  theme: ThemeMode;
-  isExplorerOpen: boolean;
-  openFiles: OpenFile[];
-  activeFileId: string;
-  zoomPercent: number;
-};
-
-type ThemeMode = "light" | "dark";
-
-type OpenFile = {
-  id: string;
-  name: string;
-  content: string;
-  nativePath: string | null;
-  isDirty: boolean;
-};
-
-type TauriMarkdownFile = {
-  path: string;
-  name: string;
-  content: string;
-};
-
-type TauriSavedMarkdownFile = {
-  path: string;
-  name: string;
-};
-
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
   throw new Error("App root was not found.");
 }
 
-const appRoot = app;
 const savedDraft = localStorage.getItem(DRAFT_KEY);
 const savedTitle = localStorage.getItem(TITLE_KEY);
 const savedTheme = localStorage.getItem(THEME_KEY);
-const savedFontSize = localStorage.getItem(FONT_SIZE_KEY);
+const savedZoom = localStorage.getItem(ZOOM_KEY);
 const initialFileName = savedTitle ?? "Untitled.md";
 const initialContent = savedDraft ?? starterMarkdown;
 const initialFileId = crypto.randomUUID();
@@ -93,9 +97,9 @@ const state: EditorState = {
   isDirty: Boolean(savedDraft),
   mode: "split",
   theme: savedTheme === "dark" ? "dark" : "light",
-  isExplorerOpen: localStorage.getItem(EXPLORER_KEY) !== "false",
+  isSidebarOpen: localStorage.getItem(SIDEBAR_KEY) !== "false",
   activeFileId: initialFileId,
-  zoomPercent: parseSavedZoom(savedFontSize),
+  zoomPercent: parseSavedZoom(savedZoom),
   openFiles: [
     {
       id: initialFileId,
@@ -110,25 +114,25 @@ const state: EditorState = {
 app.innerHTML = `
   <main class="shell">
     <header class="topbar">
-      <section class="document-meta" aria-label="Document details">
-        <input class="title-input" value="${escapeAttribute(state.fileName)}" aria-label="File name" />
-        <span class="save-state">Draft saved locally</span>
-      </section>
+      <div class="topbar-leading">
+        <button class="icon-button sidebar-toggle" data-action="toggle-sidebar" title="Toggle documents" aria-label="Toggle documents" aria-pressed="true">☰</button>
+        <section class="document-meta" aria-label="Document details">
+          <input class="title-input" value="${escapeAttribute(state.fileName)}" aria-label="File name" />
+          <span class="save-state">Draft saved locally</span>
+        </section>
+      </div>
 
       <nav class="toolbar" aria-label="Editor tools">
-        <button class="icon-button explorer-toggle" data-action="toggle-explorer" title="Toggle file explorer" aria-label="Toggle file explorer" aria-pressed="true">☰</button>
-        <button class="icon-button" data-action="new" title="New document" aria-label="New document">+</button>
-        <button class="text-button" data-action="open">Open</button>
         <button class="text-button" data-action="save">Save</button>
-        <div class="font-controls" role="group" aria-label="Document zoom">
-          <button class="font-button" data-action="font-decrease" aria-label="Zoom out document">A-</button>
-          <span class="font-size-label" aria-label="Current document zoom">100%</span>
-          <button class="font-button" data-action="font-increase" aria-label="Zoom in document">A+</button>
-        </div>
         <div class="segmented" role="group" aria-label="View mode">
           <button data-mode="write">Write</button>
           <button data-mode="split">Split</button>
           <button data-mode="preview">Read</button>
+        </div>
+        <div class="font-controls" role="group" aria-label="Document zoom">
+          <button class="font-button" data-action="font-decrease" aria-label="Zoom out document">A-</button>
+          <span class="font-size-label" aria-label="Current document zoom">100%</span>
+          <button class="font-button" data-action="font-increase" aria-label="Zoom in document">A+</button>
         </div>
         <button class="theme-button" data-action="theme" aria-label="Switch to dark theme" title="Switch theme">
           <span class="theme-dot" aria-hidden="true"></span>
@@ -138,14 +142,25 @@ app.innerHTML = `
     </header>
 
     <section class="main-area">
-      <aside class="file-explorer" aria-label="File explorer">
-        <div class="explorer-header">
-          <button class="explorer-disclosure" data-action="collapse-explorer-group" aria-label="Collapse open files" aria-expanded="true">⌄</button>
-          <span>Explorer</span>
-        </div>
-        <div class="explorer-group">
-          <div class="explorer-group-title">Open Editors</div>
-          <ul class="file-tree" aria-label="Open files"></ul>
+      <aside class="document-drawer" aria-label="Documents">
+        <div class="drawer-panel">
+          <div class="drawer-actions">
+            <button class="drawer-action primary" data-action="new">New</button>
+            <button class="drawer-action" data-action="open">Open File</button>
+          </div>
+
+          <section class="drawer-section">
+            <div class="drawer-section-head">
+              <span class="drawer-section-title">Open Documents</span>
+              <span class="drawer-section-count">${state.openFiles.length}</span>
+            </div>
+            <ul class="document-list" aria-label="Open documents"></ul>
+          </section>
+
+          <section class="drawer-note" aria-label="Tips">
+            <span class="drawer-note-title">Shortcuts</span>
+            <p class="shortcut-copy"></p>
+          </section>
         </div>
       </aside>
 
@@ -160,17 +175,30 @@ app.innerHTML = `
       <span class="stat characters">0 chars</span>
       <span class="stat lines">0 lines</span>
     </footer>
+
+    <div class="dialog-backdrop hidden" aria-hidden="true">
+      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-close-title">
+        <div class="confirm-dialog-copy">
+          <h2 id="confirm-close-title" class="confirm-dialog-title">Save changes before closing?</h2>
+          <p class="confirm-dialog-message"></p>
+        </div>
+        <div class="confirm-dialog-actions">
+          <button class="text-button subtle-button" data-action="confirm-close-cancel">Cancel</button>
+          <button class="text-button subtle-button" data-action="confirm-close-discard">Don't Save</button>
+          <button class="text-button primary-button" data-action="confirm-close-save">Save</button>
+        </div>
+      </div>
+    </div>
   </main>
 `;
 
+const appRoot = app;
 const titleInput = requireElement<HTMLInputElement>(".title-input");
 const saveState = requireElement<HTMLSpanElement>(".save-state");
 const workspace = requireElement<HTMLElement>(".workspace");
 const mainArea = requireElement<HTMLElement>(".main-area");
-const explorerToggle = requireElement<HTMLButtonElement>(".explorer-toggle");
-const explorerDisclosure = requireElement<HTMLButtonElement>(".explorer-disclosure");
-const explorerGroup = requireElement<HTMLElement>(".explorer-group");
-const fileTree = requireElement<HTMLUListElement>(".file-tree");
+const sidebarToggle = requireElement<HTMLButtonElement>(".sidebar-toggle");
+const documentList = requireElement<HTMLUListElement>(".document-list");
 const editor = requireElement<HTMLTextAreaElement>(".editor");
 const preview = requireElement<HTMLElement>(".preview");
 const wordStat = requireElement<HTMLSpanElement>(".words");
@@ -181,25 +209,43 @@ const themeLabel = requireElement<HTMLSpanElement>(".theme-label");
 const fontDecreaseButton = requireElement<HTMLButtonElement>("[data-action='font-decrease']");
 const fontIncreaseButton = requireElement<HTMLButtonElement>("[data-action='font-increase']");
 const fontSizeLabel = requireElement<HTMLSpanElement>(".font-size-label");
+const documentCount = requireElement<HTMLSpanElement>(".drawer-section-count");
+const shortcutCopy = requireElement<HTMLParagraphElement>(".shortcut-copy");
+const dialogBackdrop = requireElement<HTMLDivElement>(".dialog-backdrop");
+const confirmDialogMessage = requireElement<HTMLParagraphElement>(".confirm-dialog-message");
+const confirmCloseSaveButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-save']");
 const modeButtons = Array.from(app.querySelectorAll<HTMLButtonElement>("[data-mode]"));
-let activeScrollSource: "editor" | "preview" | null = null;
+
+let activeScrollSource: "editor" | "preview" = "editor";
+let programmaticScrollSource: "editor" | "preview" | null = null;
+let pendingCloseRequest: PendingCloseRequest | null = null;
 
 editor.value = state.content;
+void setupMenuListener();
 render();
 
 editor.addEventListener("input", () => {
   state.content = editor.value;
   state.isDirty = true;
+  activeScrollSource = "editor";
   persistDraft();
   syncActiveFile();
   render();
 });
 
 editor.addEventListener("scroll", () => {
+  if (programmaticScrollSource === "editor" || state.mode !== "split") {
+    return;
+  }
+
   syncScroll(editor, preview, "editor");
 });
 
 preview.addEventListener("scroll", () => {
+  if (programmaticScrollSource === "preview" || state.mode !== "split") {
+    return;
+  }
+
   syncScroll(preview, editor, "preview");
 });
 
@@ -249,22 +295,17 @@ app.addEventListener("click", async (event) => {
   }
 
   if (action === "font-decrease") {
-    changeFontSize(-1);
+    changeZoom(-1);
     return;
   }
 
   if (action === "font-increase") {
-    changeFontSize(1);
+    changeZoom(1);
     return;
   }
 
-  if (action === "toggle-explorer") {
-    toggleExplorer();
-    return;
-  }
-
-  if (action === "collapse-explorer-group") {
-    toggleExplorerGroup();
+  if (action === "toggle-sidebar") {
+    toggleSidebar();
     return;
   }
 
@@ -274,11 +315,32 @@ app.addEventListener("click", async (event) => {
   }
 
   if (action === "close-file" && target.dataset.fileId) {
-    closeOpenFile(target.dataset.fileId);
+    await requestCloseFile(target.dataset.fileId);
+    return;
+  }
+
+  if (action === "confirm-close-cancel") {
+    closeConfirmDialog();
+    return;
+  }
+
+  if (action === "confirm-close-discard") {
+    discardPendingClose();
+    return;
+  }
+
+  if (action === "confirm-close-save") {
+    await saveAndClosePendingFile();
   }
 });
 
 document.addEventListener("keydown", async (event) => {
+  if (event.key === "Escape" && pendingCloseRequest) {
+    event.preventDefault();
+    closeConfirmDialog();
+    return;
+  }
+
   const isCommand = event.metaKey || event.ctrlKey;
 
   if (!isCommand) {
@@ -287,7 +349,7 @@ document.addEventListener("keydown", async (event) => {
 
   if (event.key.toLowerCase() === "s") {
     event.preventDefault();
-    await saveDocument();
+    await (event.shiftKey ? saveDocumentAs() : saveDocument());
   }
 
   if (event.key.toLowerCase() === "o") {
@@ -301,16 +363,23 @@ document.addEventListener("keydown", async (event) => {
   }
 });
 
+dialogBackdrop.addEventListener("click", (event) => {
+  if (event.target === dialogBackdrop) {
+    closeConfirmDialog();
+  }
+});
+
 function render() {
   preview.innerHTML = DOMPurify.sanitize(marked.parse(state.content, { async: false }));
   renderStats();
   renderMode();
   renderTheme();
-  renderFontSize();
-  renderExplorer();
+  renderZoom();
+  renderDocuments();
+  renderShortcuts();
   renderSaveState();
   requestAnimationFrame(() => {
-    syncScroll(editor, preview, "editor");
+    syncActiveScroll();
   });
 }
 
@@ -351,22 +420,28 @@ function renderSaveState(message?: string) {
   saveState.textContent = state.isDirty ? "Unsaved changes" : "Saved";
 }
 
-function renderExplorer() {
-  mainArea.classList.toggle("explorer-closed", !state.isExplorerOpen);
-  explorerToggle.setAttribute("aria-pressed", String(state.isExplorerOpen));
-  explorerToggle.classList.toggle("active", state.isExplorerOpen);
+function renderDocuments() {
+  mainArea.classList.toggle("sidebar-closed", !state.isSidebarOpen);
+  sidebarToggle.setAttribute("aria-pressed", String(state.isSidebarOpen));
+  sidebarToggle.classList.toggle("active", state.isSidebarOpen);
+  documentCount.textContent = String(state.openFiles.length);
 
-  fileTree.innerHTML = state.openFiles
+  documentList.innerHTML = state.openFiles
     .map((file) => {
-      const activeClass = file.id === state.activeFileId ? " active" : "";
+      const isActive = file.id === state.activeFileId;
+      const activeClass = isActive ? " active" : "";
       const dirtyMark = file.isDirty ? "<span class=\"dirty-mark\" aria-hidden=\"true\" title=\"Unsaved changes\"></span>" : "";
+      const subtitle = file.nativePath ? escapeHtml(formatPathForDisplay(file.nativePath)) : "Local draft";
+      const icon = escapeHtml(documentInitial(file.name));
 
       return `
-        <li>
-          <button class="file-item${activeClass}" data-action="select-file" data-file-id="${file.id}" title="${escapeAttribute(file.name)}" aria-label="${escapeAttribute(file.name)}">
-            <span class="file-chevron" aria-hidden="true">›</span>
-            <span class="file-icon" aria-hidden="true">M</span>
-            <span class="file-name">${escapeHtml(file.name)}</span>
+        <li class="document-row${activeClass}">
+          <button class="document-item${activeClass}" data-action="select-file" data-file-id="${file.id}" title="${escapeAttribute(file.name)}" aria-label="${escapeAttribute(file.name)}">
+            <span class="document-icon" aria-hidden="true">${icon}</span>
+            <span class="document-copy">
+              <span class="document-name">${escapeHtml(file.name)}</span>
+              <span class="document-path">${subtitle}</span>
+            </span>
             ${dirtyMark}
           </button>
           <button class="file-close" data-action="close-file" data-file-id="${file.id}" aria-label="Close ${escapeAttribute(file.name)}">×</button>
@@ -374,6 +449,23 @@ function renderExplorer() {
       `;
     })
     .join("");
+}
+
+function renderShortcuts() {
+  shortcutCopy.innerHTML = buildShortcutMarkup();
+}
+
+function openConfirmDialog(message: string) {
+  confirmDialogMessage.textContent = message;
+  dialogBackdrop.classList.remove("hidden");
+  dialogBackdrop.setAttribute("aria-hidden", "false");
+  confirmCloseSaveButton.focus();
+}
+
+function closeConfirmDialog() {
+  pendingCloseRequest = null;
+  dialogBackdrop.classList.add("hidden");
+  dialogBackdrop.setAttribute("aria-hidden", "true");
 }
 
 function setMode(mode: ViewMode) {
@@ -397,19 +489,28 @@ function toggleTheme() {
   renderTheme();
 }
 
-function renderFontSize() {
+function renderZoom() {
   document.documentElement.style.setProperty("--content-scale", `${state.zoomPercent / 100}`);
   fontSizeLabel.textContent = `${state.zoomPercent}%`;
   fontDecreaseButton.disabled = state.zoomPercent <= MIN_ZOOM_PERCENT;
   fontIncreaseButton.disabled = state.zoomPercent >= MAX_ZOOM_PERCENT;
 }
 
-function changeFontSize(delta: number) {
+function changeZoom(delta: number) {
   state.zoomPercent = clampZoom(state.zoomPercent + delta * ZOOM_STEP);
-  localStorage.setItem(FONT_SIZE_KEY, String(state.zoomPercent));
-  renderFontSize();
+  localStorage.setItem(ZOOM_KEY, String(state.zoomPercent));
+  renderZoom();
   requestAnimationFrame(() => {
-    syncScroll(editor, preview, "editor");
+    syncActiveScroll();
+  });
+}
+
+function resetZoom() {
+  state.zoomPercent = DEFAULT_ZOOM_PERCENT;
+  localStorage.setItem(ZOOM_KEY, String(state.zoomPercent));
+  renderZoom();
+  requestAnimationFrame(() => {
+    syncActiveScroll();
   });
 }
 
@@ -424,7 +525,13 @@ function createNewDocument() {
 
 async function openDocument() {
   try {
-    await openTauriDocument();
+    const file = await invoke<TauriMarkdownFile | null>("open_markdown_file");
+
+    if (!file) {
+      return;
+    }
+
+    loadNativeFile(file);
   } catch (error) {
     console.error(error);
     renderSaveState("Could not open file");
@@ -432,39 +539,35 @@ async function openDocument() {
 }
 
 async function saveDocument() {
+  return saveCurrentDocument();
+}
+
+async function saveDocumentAs() {
+  return saveCurrentDocument(true);
+}
+
+async function saveCurrentDocument(forceDialog = false) {
   try {
-    await saveTauriDocument();
+    const savedFile = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
+      path: forceDialog ? null : state.nativePath,
+      suggestedName: state.fileName,
+      content: state.content
+    });
+
+    if (!savedFile) {
+      return;
+    }
+
+    state.fileName = savedFile.name;
+    state.nativePath = savedFile.path;
+    titleInput.value = state.fileName;
+    markSaved();
+    return true;
   } catch (error) {
     console.error(error);
     renderSaveState("Could not save file");
+    return false;
   }
-}
-
-async function openTauriDocument() {
-  const file = await invoke<TauriMarkdownFile | null>("open_markdown_file");
-
-  if (!file) {
-    return;
-  }
-
-  loadNativeFile(file);
-}
-
-async function saveTauriDocument() {
-  const savedFile = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
-    path: state.nativePath,
-    suggestedName: state.fileName,
-    content: state.content
-  });
-
-  if (!savedFile) {
-    return;
-  }
-
-  state.fileName = savedFile.name;
-  state.nativePath = savedFile.path;
-  titleInput.value = state.fileName;
-  markSaved();
 }
 
 function loadNativeFile(file: TauriMarkdownFile) {
@@ -497,7 +600,7 @@ function markSaved(message = "Saved") {
   state.isDirty = false;
   syncActiveFile();
   persistDraft();
-  renderExplorer();
+  renderDocuments();
   renderSaveState(message);
 }
 
@@ -528,6 +631,7 @@ function activateFile(fileId: string) {
   state.fileName = file.name;
   state.nativePath = file.nativePath;
   state.isDirty = file.isDirty;
+  activeScrollSource = "editor";
   editor.value = file.content;
   titleInput.value = file.name;
   persistDraft();
@@ -553,6 +657,26 @@ function selectOpenFile(fileId: string) {
   editor.focus();
 }
 
+async function requestCloseFile(fileId: string) {
+  const file = state.openFiles.find((item) => item.id === fileId);
+
+  if (!file) {
+    return;
+  }
+
+  if (!file.isDirty) {
+    closeOpenFile(fileId);
+    return;
+  }
+
+  pendingCloseRequest = { fileId };
+  openConfirmDialog(`"${file.name}" has unsaved changes. Save before closing?`);
+}
+
+async function requestCloseActiveFile() {
+  await requestCloseFile(state.activeFileId);
+}
+
 function closeOpenFile(fileId: string) {
   const index = state.openFiles.findIndex((item) => item.id === fileId);
 
@@ -574,22 +698,206 @@ function closeOpenFile(fileId: string) {
   render();
 }
 
-function toggleExplorer() {
-  state.isExplorerOpen = !state.isExplorerOpen;
-  localStorage.setItem(EXPLORER_KEY, String(state.isExplorerOpen));
-  renderExplorer();
+function discardPendingClose() {
+  if (!pendingCloseRequest) {
+    return;
+  }
+
+  const { fileId } = pendingCloseRequest;
+  closeConfirmDialog();
+  closeOpenFile(fileId);
 }
 
-function toggleExplorerGroup() {
-  const isExpanded = explorerDisclosure.getAttribute("aria-expanded") !== "false";
+async function saveAndClosePendingFile() {
+  if (!pendingCloseRequest) {
+    return;
+  }
 
-  explorerDisclosure.setAttribute("aria-expanded", String(!isExpanded));
-  explorerDisclosure.textContent = isExpanded ? "›" : "⌄";
-  explorerGroup.classList.toggle("collapsed", isExpanded);
+  const targetFile = state.openFiles.find((item) => item.id === pendingCloseRequest?.fileId);
+
+  if (!targetFile) {
+    closeConfirmDialog();
+    return;
+  }
+
+  const activeFileBeforeSave = state.activeFileId;
+
+  if (targetFile.id !== state.activeFileId) {
+    syncActiveFile();
+    activateFile(targetFile.id);
+    render();
+  }
+
+  const didSave = await saveCurrentDocument();
+
+  if (!didSave) {
+    if (activeFileBeforeSave !== state.activeFileId) {
+      const previousFile = state.openFiles.find((item) => item.id === activeFileBeforeSave);
+      if (previousFile) {
+        activateFile(previousFile.id);
+        render();
+      }
+    }
+    return;
+  }
+
+  const fileId = pendingCloseRequest.fileId;
+  closeConfirmDialog();
+  closeOpenFile(fileId);
+}
+
+function toggleSidebar() {
+  state.isSidebarOpen = !state.isSidebarOpen;
+  localStorage.setItem(SIDEBAR_KEY, String(state.isSidebarOpen));
+  renderDocuments();
+}
+
+async function setupMenuListener() {
+  await listen<string>("app-menu-action", async (event) => {
+    switch (event.payload) {
+      case "file.new":
+        createNewDocument();
+        break;
+      case "file.open":
+        await openDocument();
+        break;
+      case "file.save":
+        await saveDocument();
+        break;
+      case "file.save_as":
+        await saveDocumentAs();
+        break;
+      case "file.close":
+        await requestCloseActiveFile();
+        break;
+      case "view.write":
+        setMode("write");
+        break;
+      case "view.split":
+        setMode("split");
+        break;
+      case "view.preview":
+        setMode("preview");
+        break;
+      case "view.zoom_in":
+        changeZoom(1);
+        break;
+      case "view.zoom_out":
+        changeZoom(-1);
+        break;
+      case "view.actual_size":
+        resetZoom();
+        break;
+      case "view.toggle_sidebar":
+        toggleSidebar();
+        break;
+      case "view.toggle_theme":
+        toggleTheme();
+        break;
+      case "edit.undo":
+        await performEditorAction("undo");
+        break;
+      case "edit.redo":
+        await performEditorAction("redo");
+        break;
+      case "edit.cut":
+        await performEditorAction("cut");
+        break;
+      case "edit.copy":
+        await performEditorAction("copy");
+        break;
+      case "edit.paste":
+        await performEditorAction("paste");
+        break;
+      case "edit.select_all":
+        await performEditorAction("selectAll");
+        break;
+      default:
+        break;
+    }
+  });
+}
+
+async function performEditorAction(
+  action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll"
+) {
+  const activeElement = document.activeElement;
+  const target = isTextField(activeElement) ? activeElement : editor;
+
+  target.focus();
+
+  if (action === "selectAll") {
+    target.select();
+    return;
+  }
+
+  if (action === "copy" || action === "cut") {
+    await copySelection(target);
+
+    if (action === "cut") {
+      replaceSelection(target, "");
+      syncTextFieldState(target);
+    }
+
+    return;
+  }
+
+  if (action === "paste") {
+    const pastedText = await navigator.clipboard.readText();
+    replaceSelection(target, pastedText);
+    syncTextFieldState(target);
+    return;
+  }
+
+  document.execCommand(action);
+  syncTextFieldState(target);
+}
+
+function isTextField(element: Element | null): element is HTMLInputElement | HTMLTextAreaElement {
+  return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+}
+
+async function copySelection(target: HTMLInputElement | HTMLTextAreaElement) {
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const selectedText = target.value.slice(start, end);
+
+  await navigator.clipboard.writeText(selectedText);
+}
+
+function replaceSelection(target: HTMLInputElement | HTMLTextAreaElement, nextText: string) {
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const value = target.value;
+
+  target.value = `${value.slice(0, start)}${nextText}${value.slice(end)}`;
+
+  const cursor = start + nextText.length;
+  target.setSelectionRange(cursor, cursor);
+}
+
+function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
+  if (target === editor) {
+    state.content = editor.value;
+    state.isDirty = true;
+    activeScrollSource = "editor";
+    persistDraft();
+    syncActiveFile();
+    render();
+    return;
+  }
+
+  if (target === titleInput) {
+    state.fileName = normalizeFileName(titleInput.value);
+    state.isDirty = true;
+    syncActiveFile();
+    localStorage.setItem(TITLE_KEY, state.fileName);
+    render();
+  }
 }
 
 function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
-  if (activeScrollSource && activeScrollSource !== sourceName) {
+  if (state.mode !== "split" || programmaticScrollSource === sourceName) {
     return;
   }
 
@@ -602,11 +910,31 @@ function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "edito
 
   activeScrollSource = sourceName;
   const ratio = source.scrollTop / sourceScrollable;
-  target.scrollTop = targetScrollable * ratio;
+  const nextTop = targetScrollable * ratio;
+
+  if (Math.abs(target.scrollTop - nextTop) < 1) {
+    return;
+  }
+
+  programmaticScrollSource = sourceName === "editor" ? "preview" : "editor";
+  target.scrollTop = nextTop;
 
   requestAnimationFrame(() => {
-    activeScrollSource = null;
+    programmaticScrollSource = null;
   });
+}
+
+function syncActiveScroll() {
+  if (state.mode !== "split") {
+    return;
+  }
+
+  if (activeScrollSource === "preview") {
+    syncScroll(preview, editor, "preview");
+    return;
+  }
+
+  syncScroll(editor, preview, "editor");
 }
 
 function normalizeFileName(fileName: string) {
@@ -632,8 +960,38 @@ function parseSavedZoom(value: string | null) {
   return Number.isFinite(zoomPercent) ? clampZoom(zoomPercent) : DEFAULT_ZOOM_PERCENT;
 }
 
+function documentInitial(name: string) {
+  const trimmed = name.trim();
+  const firstCharacter = trimmed.charAt(0).toUpperCase();
+
+  return firstCharacter || "•";
+}
+
+function formatPathForDisplay(path: string) {
+  const normalized = path.replaceAll("\\", "/");
+
+  if (normalized.length <= 54) {
+    return normalized;
+  }
+
+  const head = normalized.slice(0, 24);
+  const tail = normalized.slice(-22);
+  return `${head} ... ${tail}`;
+}
+
+function buildShortcutMarkup() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMac = userAgent.includes("mac");
+
+  if (isMac) {
+    return "Use <kbd>Cmd</kbd> + <kbd>O</kbd>, <kbd>N</kbd>, <kbd>S</kbd> for open, new, and save.";
+  }
+
+  return "Use <kbd>Ctrl</kbd> + <kbd>O</kbd>, <kbd>N</kbd>, <kbd>S</kbd> for open, new, and save.";
+}
+
 function escapeAttribute(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+  return value.replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;");
 }
 
 function escapeHtml(value: string) {
@@ -641,5 +999,5 @@ function escapeHtml(value: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll("\"", "&quot;");
 }
