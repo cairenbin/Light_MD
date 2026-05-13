@@ -2,7 +2,7 @@
 
 Thanks for taking an interest in Light Markdown Editor.
 
-This project is still pre-alpha, so the main goal is to keep the codebase small, understandable, and easy to reshape.
+This project is still in alpha-stage development, so the main goal is to keep the codebase small, understandable, and easy to reshape.
 
 ## Local Setup
 

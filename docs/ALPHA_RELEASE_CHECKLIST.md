@@ -20,7 +20,7 @@ Use this checklist before publishing the first GitHub alpha.
 - Verify synchronized scrolling in Split mode.
 - Verify light and dark theme switching.
 - Verify proportional zoom controls.
-- Verify file explorer open, close, select, collapse, and hide behavior.
+- Verify document drawer open, close, select, and hide behavior.
 
 ## Quality
 
@@ -35,5 +35,5 @@ Use this checklist before publishing the first GitHub alpha.
 - Decide whether alpha builds will be attached to GitHub Releases.
 - Add packaging scripts only when the app behavior is stable enough.
 - Replace the placeholder app icon before a public alpha if possible.
-- Add commercial license contact information before public release.
+- Confirm the commercial licensing contact path is still accurate before public release.
 - Tag alpha releases consistently, for example `v0.1.0-alpha.1`.
