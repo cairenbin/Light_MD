@@ -15,6 +15,14 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Native file dialogs and desktop shortcuts.
 - Local draft persistence for the current editing session.
 
+## Tech Stack
+
+- Tauri v2 for the desktop application shell.
+- TypeScript and Vite for the editor UI.
+- Rust for native commands and file operations.
+- `marked` for Markdown rendering.
+- `DOMPurify` for preview sanitization.
+
 ## Run Locally
 
 ```bash
