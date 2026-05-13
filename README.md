@@ -1,73 +1,34 @@
 # Light Markdown Editor
 
-A lightweight desktop Markdown editor inspired by Typora, built with Tauri, Vite, and TypeScript.
+A lightweight cross-platform Markdown desktop editor inspired by Typora.
 
-This project is now app-first. The Vite frontend is kept as the UI layer required by Tauri, but the product direction is a cross-platform desktop app rather than a standalone web editor.
+Light Markdown Editor is built around a quiet, app-first writing experience. It aims to be a simple desktop editor rather than an IDE, with native file operations, live preview, and a compact document workflow. The project is intended to stay focused on Markdown writing itself instead of workspace or project management, with a cross-platform direction across macOS, Linux, and Windows.
 
-## Current Features
+## Features
 
-- Markdown source editing with live rendered preview.
-- Write, Split, and Read modes.
-- Native file open and save through Tauri.
-- VS Code style open-file explorer.
-- Solarized-inspired light and dark themes.
-- Proportional document zoom with `A-` and `A+`.
-- Synchronized scrolling between editor and preview in Split mode.
-- Local draft recovery for the current editing state.
+- Markdown editing with live rendered preview.
+- `Write`, `Split`, and `Read` viewing modes.
+- Native desktop `Open`, `Save`, and `Save As...`.
+- Multi-document session handling with an open documents drawer.
+- Light and dark themes.
+- Proportional document zoom.
+- Native file dialogs and desktop shortcuts.
+- Local draft persistence for the current editing session.
 
-## Tech Stack
-
-- Tauri v2 for the desktop shell and native file operations.
-- Vite for frontend development and bundling.
-- TypeScript for the editor UI.
-- marked for Markdown rendering.
-- DOMPurify for sanitized preview output.
-- Rust for Tauri commands.
-
-## Development
-
-Install dependencies:
+## Run Locally
 
 ```bash
 npm install
-```
-
-Run the desktop app in development mode:
-
-```bash
 npm run tauri:dev
 ```
 
-Run project checks:
+## Status
 
-```bash
-npm run check
-```
-
-The `dev` and `build` scripts are still present because Tauri uses Vite under the hood:
-
-```bash
-npm run dev
-npm run build
-```
-
-For normal app development, prefer `npm run tauri:dev`.
-
-## Project Status
-
-The project is pre-alpha. The editor is usable for basic Markdown workflows, but the app is still evolving quickly and should not yet be treated as a polished release.
-
-See [docs/ALPHA_RELEASE_CHECKLIST.md](docs/ALPHA_RELEASE_CHECKLIST.md) before publishing the first alpha build or opening the repository publicly.
-
-## Release Notes
-
-See [CHANGELOG.md](CHANGELOG.md).
+The project is in alpha-stage development. It already supports basic Markdown editing workflows, but the app is still evolving and not yet positioned as a finished stable release.
 
 ## License
 
 This project is available under a dual-license model:
 
-- Open source use: GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
-- Commercial use: contact the project owner for a separate commercial license if you need proprietary distribution, closed-source integration, or terms that are not compatible with GPLv3.
-
-See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for the commercial licensing note.
+- Open source: GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
+- Commercial licensing: see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
