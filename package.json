@@ -1,0 +1,25 @@
+{
+  "name": "light-md-editor",
+  "version": "0.1.0",
+  "description": "A lightweight Tauri Markdown editor inspired by Typora.",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "build": "tsc && vite build",
+    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "dompurify": "^3.2.3",
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}
