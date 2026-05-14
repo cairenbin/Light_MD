@@ -10,10 +10,14 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - `Write`, `Split`, and `Read` viewing modes.
 - Native desktop `Open`, `Save`, and `Save As...`.
 - Multi-document session handling with an open documents drawer.
+- Multi-draft persistence and session restore across app restarts.
 - Light and dark themes.
 - Proportional document zoom.
+- Toolbar `Insert` snippets for block-level Markdown structures.
+- Autocomplete hints with configurable trigger key combinations.
+- Settings panel for theme, zoom, and autocomplete shortcut preferences.
 - Native file dialogs and desktop shortcuts.
-- Local draft persistence for the current editing session.
+- OS-aware shortcut display and shortcut option filtering.
 
 ## Tech Stack
 
