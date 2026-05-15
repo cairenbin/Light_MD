@@ -20,6 +20,8 @@ All notable changes to this project will be documented in this file.
 - Insert snippets menu for block-level Markdown structures.
 - Toolbar settings panel with grouped controls for theme, zoom, and autocomplete trigger shortcut.
 - Configurable autocomplete trigger key combinations with per-OS availability filtering.
+- UI localization support with Chinese, Japanese, and English language options.
+- Settings-level language selector with persisted language preference.
 
 ### Changed
 
@@ -30,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - Moved current document metadata beside the sidebar toggle and linked its visibility to the drawer toggle state.
 - Refined toolbar responsive behavior so controls stay on one row at wider compact window sizes.
 - Unified settings panel control styling for theme, zoom, and autocomplete trigger controls.
+- Refined multilingual layout behavior for CJK environments (spacing, control widths, and title styling).
 
 ### Fixed
 

@@ -18,6 +18,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Toolbar `Insert` snippets for block-level Markdown structures.
 - Autocomplete hints with configurable trigger key combinations.
 - Settings panel for theme, zoom, and autocomplete shortcut preferences.
+- Built-in UI language switching (`English`, `中文`, `日本語`) from Settings.
 - Native file dialogs and desktop shortcuts.
 - OS-aware shortcut display and shortcut option filtering.
 
