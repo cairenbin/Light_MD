@@ -360,7 +360,8 @@ kbd {
   font-weight: 700;
 }
 
-.settings-shortcut-select {
+.settings-shortcut-select,
+.settings-language-select {
   min-height: 36px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -764,6 +765,33 @@ kbd {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+:root[data-locale="zh"] .settings-group-title,
+:root[data-locale="ja"] .settings-group-title,
+:root[data-locale="zh"] .drawer-section-title,
+:root[data-locale="ja"] .drawer-section-title,
+:root[data-locale="zh"] .drawer-note-title,
+:root[data-locale="ja"] .drawer-note-title {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+:root[data-locale="zh"] .text-button,
+:root[data-locale="ja"] .text-button {
+  min-width: 74px;
+}
+
+:root[data-locale="zh"] .segmented button,
+:root[data-locale="ja"] .segmented button {
+  min-width: 66px;
+}
+
+:root[data-locale="zh"] .settings-shortcut-select,
+:root[data-locale="ja"] .settings-shortcut-select,
+:root[data-locale="zh"] .settings-language-select,
+:root[data-locale="ja"] .settings-language-select {
+  font-size: 12px;
 }
 
 .drawer-note p {

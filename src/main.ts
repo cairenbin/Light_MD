@@ -12,7 +12,9 @@ const THEME_KEY = "light-md-editor:theme";
 const SIDEBAR_KEY = "light-md-editor:sidebar-open";
 const ZOOM_KEY = "light-md-editor:zoom-percent";
 const AUTOCOMPLETE_SHORTCUT_KEY = "light-md-editor:autocomplete-shortcut";
+const LOCALE_KEY = "light-md-editor:locale";
 const DEFAULT_AUTOCOMPLETE_SHORTCUT_ID = "shift-space";
+const DEFAULT_LOCALE: Locale = "en";
 const DEFAULT_ZOOM_PERCENT = 100;
 const MIN_ZOOM_PERCENT = 80;
 const MAX_ZOOM_PERCENT = 140;
@@ -20,6 +22,7 @@ const ZOOM_STEP = 5;
 
 type ViewMode = "write" | "split" | "preview";
 type ThemeMode = "light" | "dark";
+type Locale = "zh" | "ja" | "en";
 
 type OpenFile = {
   id: string;
@@ -41,6 +44,7 @@ type EditorState = {
   activeFileId: string;
   zoomPercent: number;
   autocompleteShortcutId: string;
+  locale: Locale;
 };
 
 type PendingCloseRequest = {
@@ -125,6 +129,46 @@ type AutocompleteShortcutOption = {
   platforms?: Array<"mac" | "other">;
   macLabel?: string;
 };
+
+type TranslationKey =
+  | "app.title"
+  | "toolbar.file.new"
+  | "toolbar.file.open"
+  | "toolbar.file.save"
+  | "toolbar.insert"
+  | "mode.write"
+  | "mode.split"
+  | "mode.read"
+  | "settings.open"
+  | "settings.theme"
+  | "settings.theme.light"
+  | "settings.theme.dark"
+  | "settings.zoom"
+  | "settings.zoom.out"
+  | "settings.zoom.in"
+  | "settings.autocomplete"
+  | "settings.trigger"
+  | "settings.language"
+  | "sidebar.toggle"
+  | "drawer.openDocuments"
+  | "drawer.shortcuts"
+  | "drawer.localDraft"
+  | "autocomplete.title"
+  | "dialog.close.title"
+  | "dialog.close.message"
+  | "dialog.cancel"
+  | "dialog.discard"
+  | "dialog.save"
+  | "state.draftSaved"
+  | "state.unsaved"
+  | "state.saved"
+  | "state.openFailed"
+  | "state.saveFailed"
+  | "stats.words"
+  | "stats.chars"
+  | "stats.lines";
+
+type LocaleDictionary = Record<TranslationKey, string>;
 
 const starterMarkdown = `# Untitled
 
@@ -214,6 +258,123 @@ const autocompleteShortcutOptions: AutocompleteShortcutOption[] = [
     platforms: ["mac"]
   }
 ];
+
+const translations: Record<Locale, LocaleDictionary> = {
+  en: {
+    "app.title": "Light Markdown Editor",
+    "toolbar.file.new": "New",
+    "toolbar.file.open": "Open",
+    "toolbar.file.save": "Save",
+    "toolbar.insert": "Insert",
+    "mode.write": "Write",
+    "mode.split": "Split",
+    "mode.read": "Read",
+    "settings.open": "Settings",
+    "settings.theme": "Theme",
+    "settings.theme.light": "Light",
+    "settings.theme.dark": "Dark",
+    "settings.zoom": "Zoom",
+    "settings.zoom.out": "Zoom out document",
+    "settings.zoom.in": "Zoom in document",
+    "settings.autocomplete": "Autocomplete",
+    "settings.trigger": "Trigger",
+    "settings.language": "Language",
+    "sidebar.toggle": "Toggle documents",
+    "drawer.openDocuments": "Open Documents",
+    "drawer.shortcuts": "Shortcuts",
+    "drawer.localDraft": "Local draft",
+    "autocomplete.title": "Markdown Syntax",
+    "dialog.close.title": "Save changes before closing?",
+    "dialog.close.message": "\"{name}\" has unsaved changes. Save before closing?",
+    "dialog.cancel": "Cancel",
+    "dialog.discard": "Don't Save",
+    "dialog.save": "Save",
+    "state.draftSaved": "Draft saved locally",
+    "state.unsaved": "Unsaved changes",
+    "state.saved": "Saved",
+    "state.openFailed": "Could not open file",
+    "state.saveFailed": "Could not save file",
+    "stats.words": "words",
+    "stats.chars": "chars",
+    "stats.lines": "lines"
+  },
+  zh: {
+    "app.title": "轻量 Markdown 编辑器",
+    "toolbar.file.new": "新建",
+    "toolbar.file.open": "打开",
+    "toolbar.file.save": "保存",
+    "toolbar.insert": "插入",
+    "mode.write": "编辑",
+    "mode.split": "分栏",
+    "mode.read": "阅读",
+    "settings.open": "设置",
+    "settings.theme": "主题",
+    "settings.theme.light": "明亮",
+    "settings.theme.dark": "暗黑",
+    "settings.zoom": "缩放",
+    "settings.zoom.out": "缩小文档",
+    "settings.zoom.in": "放大文档",
+    "settings.autocomplete": "自动完成",
+    "settings.trigger": "触发键",
+    "settings.language": "语言",
+    "sidebar.toggle": "切换文档列表",
+    "drawer.openDocuments": "已打开文档",
+    "drawer.shortcuts": "快捷键",
+    "drawer.localDraft": "本地草稿",
+    "autocomplete.title": "Markdown 语法",
+    "dialog.close.title": "关闭前保存更改？",
+    "dialog.close.message": "“{name}” 有未保存更改，是否先保存？",
+    "dialog.cancel": "取消",
+    "dialog.discard": "不保存",
+    "dialog.save": "保存",
+    "state.draftSaved": "草稿已保存到本地",
+    "state.unsaved": "有未保存更改",
+    "state.saved": "已保存",
+    "state.openFailed": "打开文件失败",
+    "state.saveFailed": "保存文件失败",
+    "stats.words": "词",
+    "stats.chars": "字符",
+    "stats.lines": "行"
+  },
+  ja: {
+    "app.title": "ライト Markdown エディタ",
+    "toolbar.file.new": "新規",
+    "toolbar.file.open": "開く",
+    "toolbar.file.save": "保存",
+    "toolbar.insert": "挿入",
+    "mode.write": "編集",
+    "mode.split": "分割",
+    "mode.read": "閲覧",
+    "settings.open": "設定",
+    "settings.theme": "テーマ",
+    "settings.theme.light": "ライト",
+    "settings.theme.dark": "ダーク",
+    "settings.zoom": "ズーム",
+    "settings.zoom.out": "ズームアウト",
+    "settings.zoom.in": "ズームイン",
+    "settings.autocomplete": "自動補完",
+    "settings.trigger": "トリガー",
+    "settings.language": "言語",
+    "sidebar.toggle": "ドキュメント一覧の切替",
+    "drawer.openDocuments": "開いているドキュメント",
+    "drawer.shortcuts": "ショートカット",
+    "drawer.localDraft": "ローカル下書き",
+    "autocomplete.title": "Markdown 構文",
+    "dialog.close.title": "閉じる前に保存しますか？",
+    "dialog.close.message": "「{name}」に未保存の変更があります。保存して閉じますか？",
+    "dialog.cancel": "キャンセル",
+    "dialog.discard": "保存しない",
+    "dialog.save": "保存",
+    "state.draftSaved": "下書きをローカルに保存しました",
+    "state.unsaved": "未保存の変更",
+    "state.saved": "保存済み",
+    "state.openFailed": "ファイルを開けませんでした",
+    "state.saveFailed": "ファイルを保存できませんでした",
+    "stats.words": "語",
+    "stats.chars": "文字",
+    "stats.lines": "行"
+  }
+};
 
 const editorAutocompleteItems: EditorAutocompleteItem[] = [
   {
@@ -518,10 +679,12 @@ const savedTitle = localStorage.getItem(TITLE_KEY);
 const savedTheme = localStorage.getItem(THEME_KEY);
 const savedZoom = localStorage.getItem(ZOOM_KEY);
 const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY);
+const savedLocale = localStorage.getItem(LOCALE_KEY);
 const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
 const initialActiveFile = initialSession.openFiles.find((file) => file.id === initialSession.activeFileId)
   ?? initialSession.openFiles[0];
 const initialAutocompleteShortcutId = parseSavedAutocompleteShortcutId(savedAutocompleteShortcut);
+const initialLocale = parseSavedLocale(savedLocale);
 
 const state: EditorState = {
   content: initialActiveFile.content,
@@ -534,45 +697,45 @@ const state: EditorState = {
   activeFileId: initialActiveFile.id,
   zoomPercent: parseSavedZoom(savedZoom),
   openFiles: initialSession.openFiles,
-  autocompleteShortcutId: initialAutocompleteShortcutId
+  autocompleteShortcutId: initialAutocompleteShortcutId,
+  locale: initialLocale
 };
 
 app.innerHTML = `
   <main class="shell">
     <header class="topbar">
       <div class="topbar-sidebar-zone">
-        <button class="icon-button sidebar-toggle" data-action="toggle-sidebar" title="Toggle documents" aria-label="Toggle documents" aria-pressed="true">☰</button>
+        <button class="icon-button sidebar-toggle" data-action="toggle-sidebar" title="" aria-label="" aria-pressed="true">☰</button>
         <section class="document-meta" aria-label="Document details">
           <input class="title-input" value="${escapeAttribute(state.fileName)}" aria-label="File name" />
-          <span class="save-state">Draft saved locally</span>
+          <span class="save-state"></span>
         </section>
       </div>
 
       <div class="topbar-editor-zone">
         <div class="file-actions" aria-label="File actions">
-          <button class="text-button" data-action="new">New</button>
-          <button class="text-button" data-action="open">Open</button>
-          <button class="text-button" data-action="save">Save</button>
+          <button class="text-button" data-action="new"></button>
+          <button class="text-button" data-action="open"></button>
+          <button class="text-button" data-action="save"></button>
         </div>
 
         <nav class="toolbar" aria-label="Editor tools">
           <div class="toolbar-menu-shell">
             <button class="text-button menu-button" data-action="toggle-insert-menu" aria-haspopup="true" aria-expanded="false">
-              Insert
             </button>
             <div class="insert-menu hidden" aria-hidden="true"></div>
           </div>
           <div class="segmented" role="group" aria-label="View mode">
-            <button data-mode="write">Write</button>
-            <button data-mode="split">Split</button>
-            <button data-mode="preview">Read</button>
+            <button data-mode="write"></button>
+            <button data-mode="split"></button>
+            <button data-mode="preview"></button>
           </div>
           <div class="toolbar-menu-shell settings-shell">
             <button
               class="icon-button settings-button"
               data-action="toggle-settings-menu"
-              aria-label="Open settings"
-              title="Settings"
+              aria-label=""
+              title=""
               aria-haspopup="true"
               aria-expanded="false"
             >
@@ -580,27 +743,35 @@ app.innerHTML = `
             </button>
             <div class="settings-menu hidden" aria-hidden="true">
               <section class="settings-group" aria-label="Theme">
-                <h3 class="settings-group-title">Theme</h3>
+                <h3 class="settings-group-title"></h3>
                 <div class="settings-choice" role="group" aria-label="Theme mode">
-                  <button class="settings-option-button" data-action="set-theme" data-theme-value="light">Light</button>
-                  <button class="settings-option-button" data-action="set-theme" data-theme-value="dark">Dark</button>
+                  <button class="settings-option-button" data-action="set-theme" data-theme-value="light"></button>
+                  <button class="settings-option-button" data-action="set-theme" data-theme-value="dark"></button>
                 </div>
               </section>
 
               <section class="settings-group" aria-label="Document zoom">
-                <h3 class="settings-group-title">Zoom</h3>
+                <h3 class="settings-group-title"></h3>
                 <div class="font-controls settings-zoom-controls" role="group" aria-label="Document zoom">
-                  <button class="font-button" data-action="font-decrease" aria-label="Zoom out document">A-</button>
+                  <button class="font-button" data-action="font-decrease" aria-label="">A-</button>
                   <span class="font-size-label settings-zoom-label" aria-label="Current document zoom">100%</span>
-                  <button class="font-button" data-action="font-increase" aria-label="Zoom in document">A+</button>
+                  <button class="font-button" data-action="font-increase" aria-label="">A+</button>
                 </div>
               </section>
 
               <section class="settings-group" aria-label="Autocomplete shortcut">
-                <h3 class="settings-group-title">Autocomplete</h3>
+                <h3 class="settings-group-title"></h3>
                 <label class="settings-field">
-                  <span class="settings-field-label">Trigger</span>
+                  <span class="settings-field-label"></span>
                   <select class="settings-shortcut-select" aria-label="Autocomplete shortcut"></select>
+                </label>
+              </section>
+
+              <section class="settings-group" aria-label="Language">
+                <h3 class="settings-group-title"></h3>
+                <label class="settings-field">
+                  <span class="settings-field-label"></span>
+                  <select class="settings-language-select" aria-label="Language"></select>
                 </label>
               </section>
             </div>
@@ -614,14 +785,14 @@ app.innerHTML = `
         <div class="drawer-panel">
           <section class="drawer-section">
             <div class="drawer-section-head">
-              <span class="drawer-section-title">Open Documents</span>
+              <span class="drawer-section-title"></span>
               <span class="drawer-section-count">${state.openFiles.length}</span>
             </div>
             <ul class="document-list" aria-label="Open documents"></ul>
           </section>
 
           <section class="drawer-note" aria-label="Tips">
-            <span class="drawer-note-title">Shortcuts</span>
+            <span class="drawer-note-title"></span>
             <p class="shortcut-copy"></p>
           </section>
         </div>
@@ -631,7 +802,7 @@ app.innerHTML = `
         <textarea class="editor" spellcheck="true" aria-label="Markdown source"></textarea>
         <article class="preview markdown-body" aria-label="Rendered preview"></article>
         <div class="autocomplete-panel hidden" aria-hidden="true">
-          <div class="autocomplete-title">Markdown Syntax</div>
+          <div class="autocomplete-title"></div>
           <ul class="autocomplete-list" aria-label="Markdown suggestions"></ul>
         </div>
       </section>
@@ -646,13 +817,13 @@ app.innerHTML = `
     <div class="dialog-backdrop hidden" aria-hidden="true">
       <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-close-title">
         <div class="confirm-dialog-copy">
-          <h2 id="confirm-close-title" class="confirm-dialog-title">Save changes before closing?</h2>
+          <h2 id="confirm-close-title" class="confirm-dialog-title"></h2>
           <p class="confirm-dialog-message"></p>
         </div>
         <div class="confirm-dialog-actions">
-          <button class="text-button subtle-button" data-action="confirm-close-cancel">Cancel</button>
-          <button class="text-button subtle-button" data-action="confirm-close-discard">Don't Save</button>
-          <button class="text-button primary-button" data-action="confirm-close-save">Save</button>
+          <button class="text-button subtle-button" data-action="confirm-close-cancel"></button>
+          <button class="text-button subtle-button" data-action="confirm-close-discard"></button>
+          <button class="text-button primary-button" data-action="confirm-close-save"></button>
         </div>
       </div>
     </div>
@@ -675,6 +846,7 @@ const insertMenuButton = requireElement<HTMLButtonElement>(".menu-button");
 const insertMenu = requireElement<HTMLDivElement>(".insert-menu");
 const settingsMenuButton = requireElement<HTMLButtonElement>(".settings-button");
 const settingsMenu = requireElement<HTMLDivElement>(".settings-menu");
+const languageSelect = requireElement<HTMLSelectElement>(".settings-language-select");
 const wordStat = requireElement<HTMLSpanElement>(".words");
 const charStat = requireElement<HTMLSpanElement>(".characters");
 const lineStat = requireElement<HTMLSpanElement>(".lines");
@@ -689,6 +861,19 @@ const dialogBackdrop = requireElement<HTMLDivElement>(".dialog-backdrop");
 const confirmDialogMessage = requireElement<HTMLParagraphElement>(".confirm-dialog-message");
 const confirmCloseSaveButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-save']");
 const modeButtons = Array.from(app.querySelectorAll<HTMLButtonElement>("[data-mode]"));
+const fileActionButtons = {
+  new: requireElement<HTMLButtonElement>("[data-action='new']"),
+  open: requireElement<HTMLButtonElement>("[data-action='open']"),
+  save: requireElement<HTMLButtonElement>("[data-action='save']")
+};
+const settingsGroupTitles = Array.from(app.querySelectorAll<HTMLHeadingElement>(".settings-group-title"));
+const settingsFieldLabels = Array.from(app.querySelectorAll<HTMLSpanElement>(".settings-field-label"));
+const drawerSectionTitle = requireElement<HTMLSpanElement>(".drawer-section-title");
+const drawerNoteTitle = requireElement<HTMLSpanElement>(".drawer-note-title");
+const autocompleteTitle = requireElement<HTMLDivElement>(".autocomplete-title");
+const confirmDialogTitle = requireElement<HTMLHeadingElement>(".confirm-dialog-title");
+const confirmCloseCancelButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-cancel']");
+const confirmCloseDiscardButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-discard']");
 
 let activeScrollSource: "editor" | "preview" = "editor";
 let programmaticScrollSource: "editor" | "preview" | null = null;
@@ -792,6 +977,10 @@ settingsMenu.addEventListener("keydown", (event) => {
 
 shortcutSelect.addEventListener("change", () => {
   setAutocompleteShortcut(shortcutSelect.value);
+});
+
+languageSelect.addEventListener("change", () => {
+  setLocale(languageSelect.value);
 });
 
 editor.addEventListener("input", () => {
@@ -1058,6 +1247,7 @@ document.addEventListener("click", (event) => {
 });
 
 function render() {
+  renderLocale();
   preview.innerHTML = DOMPurify.sanitize(marked.parse(state.content, { async: false }));
   renderStats();
   renderMode();
@@ -1090,9 +1280,61 @@ function renderStats() {
   const characters = state.content.length;
   const lines = state.content.length === 0 ? 0 : state.content.split(/\r\n|\r|\n/).length;
 
-  wordStat.textContent = `${words} words`;
-  charStat.textContent = `${characters} chars`;
-  lineStat.textContent = `${lines} lines`;
+  wordStat.textContent = `${words} ${t("stats.words")}`;
+  charStat.textContent = `${characters} ${t("stats.chars")}`;
+  lineStat.textContent = `${lines} ${t("stats.lines")}`;
+}
+
+function renderLocale() {
+  document.documentElement.dataset.locale = state.locale;
+  document.title = t("app.title");
+  sidebarToggle.setAttribute("title", t("sidebar.toggle"));
+  sidebarToggle.setAttribute("aria-label", t("sidebar.toggle"));
+  saveState.textContent = t("state.draftSaved");
+
+  fileActionButtons.new.textContent = t("toolbar.file.new");
+  fileActionButtons.open.textContent = t("toolbar.file.open");
+  fileActionButtons.save.textContent = t("toolbar.file.save");
+
+  insertMenuButton.textContent = t("toolbar.insert");
+
+  const writeButton = modeButtons.find((button) => button.dataset.mode === "write");
+  const splitButton = modeButtons.find((button) => button.dataset.mode === "split");
+  const previewButton = modeButtons.find((button) => button.dataset.mode === "preview");
+
+  if (writeButton) {
+    writeButton.textContent = t("mode.write");
+  }
+
+  if (splitButton) {
+    splitButton.textContent = t("mode.split");
+  }
+
+  if (previewButton) {
+    previewButton.textContent = t("mode.read");
+  }
+
+  settingsMenuButton.setAttribute("title", t("settings.open"));
+  settingsMenuButton.setAttribute("aria-label", t("settings.open"));
+  themeOptionButtons[0].textContent = t("settings.theme.light");
+  themeOptionButtons[1].textContent = t("settings.theme.dark");
+  fontDecreaseButton.setAttribute("aria-label", t("settings.zoom.out"));
+  fontIncreaseButton.setAttribute("aria-label", t("settings.zoom.in"));
+
+  settingsGroupTitles[0].textContent = t("settings.theme");
+  settingsGroupTitles[1].textContent = t("settings.zoom");
+  settingsGroupTitles[2].textContent = t("settings.autocomplete");
+  settingsGroupTitles[3].textContent = t("settings.language");
+  settingsFieldLabels[0].textContent = t("settings.trigger");
+  settingsFieldLabels[1].textContent = t("settings.language");
+
+  drawerSectionTitle.textContent = t("drawer.openDocuments");
+  drawerNoteTitle.textContent = t("drawer.shortcuts");
+  autocompleteTitle.textContent = t("autocomplete.title");
+  confirmDialogTitle.textContent = t("dialog.close.title");
+  confirmCloseCancelButton.textContent = t("dialog.cancel");
+  confirmCloseDiscardButton.textContent = t("dialog.discard");
+  confirmCloseSaveButton.textContent = t("dialog.save");
 }
 
 function renderMode() {
@@ -1108,14 +1350,14 @@ function renderMode() {
 }
 
 function renderSaveState(message?: string) {
-  const pathLabel = state.nativePath ? formatPathForDisplay(state.nativePath) : "Local draft";
+  const pathLabel = state.nativePath ? formatPathForDisplay(state.nativePath) : t("drawer.localDraft");
 
   if (message) {
     saveState.textContent = `${message} · ${pathLabel}`;
     return;
   }
 
-  saveState.textContent = `${state.isDirty ? "Unsaved changes" : "Saved"} · ${pathLabel}`;
+  saveState.textContent = `${state.isDirty ? t("state.unsaved") : t("state.saved")} · ${pathLabel}`;
 }
 
 function renderDocuments() {
@@ -1129,8 +1371,10 @@ function renderDocuments() {
     .map((file) => {
       const isActive = file.id === state.activeFileId;
       const activeClass = isActive ? " active" : "";
-      const dirtyMark = file.isDirty ? "<span class=\"dirty-mark\" aria-hidden=\"true\" title=\"Unsaved changes\"></span>" : "";
-      const subtitle = file.nativePath ? escapeHtml(formatPathForDisplay(file.nativePath)) : "Local draft";
+      const dirtyMark = file.isDirty
+        ? `<span class="dirty-mark" aria-hidden="true" title="${escapeAttribute(t("state.unsaved"))}"></span>`
+        : "";
+      const subtitle = file.nativePath ? escapeHtml(formatPathForDisplay(file.nativePath)) : t("drawer.localDraft");
       const icon = escapeHtml(documentInitial(file.name));
 
       return `
@@ -1181,6 +1425,7 @@ function renderSettingsMenu() {
   settingsMenu.setAttribute("tabindex", isSettingsMenuOpen ? "0" : "-1");
   renderThemeOptions();
   renderShortcutOptions();
+  renderLanguageOptions();
 }
 
 function renderThemeOptions() {
@@ -1210,6 +1455,23 @@ function renderShortcutOptions() {
 
   shortcutSelect.innerHTML = shortcutOptionsMarkup;
   shortcutSelect.value = state.autocompleteShortcutId;
+}
+
+function renderLanguageOptions() {
+  const options: Array<{ id: Locale; label: string }> = [
+    { id: "zh", label: "中文" },
+    { id: "ja", label: "日本語" },
+    { id: "en", label: "English" }
+  ];
+
+  languageSelect.innerHTML = options
+    .map((option) => {
+      const selected = option.id === state.locale ? " selected" : "";
+      return `<option value="${option.id}"${selected}>${option.label}</option>`;
+    })
+    .join("");
+
+  languageSelect.value = state.locale;
 }
 
 function renderAutocomplete() {
@@ -1345,7 +1607,7 @@ async function openDocument() {
     loadNativeFile(file);
   } catch (error) {
     console.error(error);
-    renderSaveState("Could not open file");
+    renderSaveState(t("state.openFailed"));
   }
 }
 
@@ -1376,7 +1638,7 @@ async function saveCurrentDocument(forceDialog = false) {
     return true;
   } catch (error) {
     console.error(error);
-    renderSaveState("Could not save file");
+    renderSaveState(t("state.saveFailed"));
     return false;
   }
 }
@@ -1431,7 +1693,7 @@ function persistDraft() {
   localStorage.setItem(TITLE_KEY, state.fileName);
 }
 
-function markSaved(message = "Saved") {
+function markSaved(message = t("state.saved")) {
   state.isDirty = false;
   syncActiveFile();
   persistDraft();
@@ -1506,7 +1768,7 @@ async function requestCloseFile(fileId: string) {
   }
 
   pendingCloseRequest = { fileId };
-  openConfirmDialog(`"${file.name}" has unsaved changes. Save before closing?`);
+  openConfirmDialog(formatMessage(t("dialog.close.message"), { name: file.name }));
 }
 
 async function requestCloseActiveFile() {
@@ -2180,6 +2442,16 @@ function setAutocompleteShortcut(nextId: string) {
   renderShortcuts();
 }
 
+function setLocale(nextLocale: string) {
+  if (!isSupportedLocale(nextLocale)) {
+    return;
+  }
+
+  state.locale = nextLocale;
+  localStorage.setItem(LOCALE_KEY, state.locale);
+  render();
+}
+
 async function performEditorAction(
   action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll"
 ) {
@@ -2423,6 +2695,18 @@ function parseSavedAutocompleteShortcutId(value: string | null) {
     : defaultOption.id;
 }
 
+function parseSavedLocale(value: string | null): Locale {
+  if (isSupportedLocale(value)) {
+    return value;
+  }
+
+  return DEFAULT_LOCALE;
+}
+
+function isSupportedLocale(value: string | null): value is Locale {
+  return value === "zh" || value === "ja" || value === "en";
+}
+
 function getAvailableAutocompleteShortcutOptions() {
   const platform: "mac" | "other" = isMacPlatform() ? "mac" : "other";
   return autocompleteShortcutOptions.filter((option) => !option.platforms || option.platforms.includes(platform));
@@ -2614,7 +2898,23 @@ function buildShortcutMarkup() {
   const autocompleteShortcutMarkup = toShortcutKbdMarkup(getShortcutOptionLabel(autocompleteShortcut));
 
   if (isMac) {
+    if (state.locale === "zh") {
+      return `使用 <kbd>Cmd</kbd> + <kbd>O</kbd>、<kbd>N</kbd>、<kbd>S</kbd> 进行打开、新建和保存。<br>使用 ${autocompleteShortcutMarkup} 触发 Markdown 提示。`;
+    }
+
+    if (state.locale === "ja") {
+      return `<kbd>Cmd</kbd> + <kbd>O</kbd>、<kbd>N</kbd>、<kbd>S</kbd> で開く・新規作成・保存。<br>${autocompleteShortcutMarkup} で Markdown ヒントを表示。`;
+    }
+
     return `Use <kbd>Cmd</kbd> + <kbd>O</kbd>, <kbd>N</kbd>, <kbd>S</kbd> for open, new, and save.<br>Use ${autocompleteShortcutMarkup} for Markdown hints.`;
+  }
+
+  if (state.locale === "zh") {
+    return `使用 <kbd>Ctrl</kbd> + <kbd>O</kbd>、<kbd>N</kbd>、<kbd>S</kbd> 进行打开、新建和保存。<br>使用 ${autocompleteShortcutMarkup} 触发 Markdown 提示。`;
+  }
+
+  if (state.locale === "ja") {
+    return `<kbd>Ctrl</kbd> + <kbd>O</kbd>、<kbd>N</kbd>、<kbd>S</kbd> で開く・新規作成・保存。<br>${autocompleteShortcutMarkup} で Markdown ヒントを表示。`;
   }
 
   return `Use <kbd>Ctrl</kbd> + <kbd>O</kbd>, <kbd>N</kbd>, <kbd>S</kbd> for open, new, and save.<br>Use ${autocompleteShortcutMarkup} for Markdown hints.`;
@@ -2636,6 +2936,17 @@ function toShortcutKbdMarkup(label: string) {
     .split(" + ")
     .map((part) => `<kbd>${escapeHtml(part)}</kbd>`)
     .join(" + ");
+}
+
+function t(key: TranslationKey) {
+  const dictionary = translations[state.locale] ?? translations[DEFAULT_LOCALE];
+  return dictionary[key] ?? translations[DEFAULT_LOCALE][key] ?? key;
+}
+
+function formatMessage(template: string, variables: Record<string, string>) {
+  return Object.entries(variables).reduce((result, [key, value]) => {
+    return result.replaceAll(`{${key}}`, value);
+  }, template);
 }
 
 function escapeAttribute(value: string) {

@@ -1,5 +1,7 @@
 # Light Markdown Editor
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 A lightweight cross-platform Markdown desktop editor inspired by Typora.
 
 Light Markdown Editor is built around a quiet, app-first writing experience. It aims to be a simple desktop editor rather than an IDE, with native file operations, live preview, and a compact document workflow. The project is intended to stay focused on Markdown writing itself instead of workspace or project management, with a cross-platform direction across macOS, Linux, and Windows.
