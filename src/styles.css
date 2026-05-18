@@ -203,6 +203,29 @@ kbd {
   min-width: 0;
 }
 
+.formatting-tools {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.icon-text-button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.icon-text-button strong,
+.icon-text-button em {
+  font-size: 13px;
+}
+
 .toolbar-menu-shell {
   position: relative;
   z-index: 60;
@@ -428,6 +451,7 @@ kbd {
 
 .icon-button,
 .text-button,
+.icon-text-button,
 .theme-button,
 .font-button,
 .segmented button,
@@ -535,6 +559,7 @@ kbd {
 
 .icon-button:hover,
 .text-button:hover,
+.icon-text-button:hover,
 .theme-button:hover,
 .font-button:not(:disabled):hover,
 .segmented button:hover,
@@ -548,6 +573,7 @@ kbd {
 
 .icon-button:active,
 .text-button:active,
+.icon-text-button:active,
 .theme-button:active,
 .font-button:not(:disabled):active,
 .segmented button:active,
@@ -863,6 +889,127 @@ kbd {
   backdrop-filter: blur(18px);
 }
 
+.find-panel {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 34;
+  display: grid;
+  gap: 6px;
+  width: auto;
+  max-width: none;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.find-panel.hidden {
+  display: none;
+}
+
+.find-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.replace-row {
+  grid-template-columns: minmax(300px, 1fr) auto;
+}
+
+.replace-row.hidden {
+  display: none;
+}
+
+.find-input,
+.replace-input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--text-strong);
+  outline: none;
+}
+
+.find-input:focus-visible,
+.replace-input:focus-visible {
+  border-color: var(--accent);
+}
+
+.find-status {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.find-row-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: max-content;
+  flex-wrap: wrap;
+}
+
+.replace-controls {
+  justify-content: flex-end;
+}
+
+.find-button {
+  flex: 0 0 auto;
+  min-width: 74px;
+  min-height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.find-toggle-button {
+  min-width: 96px;
+}
+
+.find-option-button {
+  min-width: 44px;
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.find-option-button.active {
+  border-color: var(--accent);
+  background: rgba(38, 139, 210, 0.16);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px rgba(38, 139, 210, 0.18);
+}
+
+.find-option-button.active:hover {
+  background: rgba(38, 139, 210, 0.22);
+}
+
+@media (max-width: 1120px) {
+  .find-row,
+  .replace-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .find-row-controls {
+    min-width: 0;
+  }
+}
+
 .autocomplete-panel.hidden {
   display: none;
 }
@@ -1139,6 +1286,12 @@ kbd {
 
   .toolbar {
     justify-content: space-between;
+  }
+
+  .find-panel {
+    top: 10px;
+    right: 10px;
+    width: calc(100% - 20px);
   }
 
   .title-input {

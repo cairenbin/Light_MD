@@ -16,7 +16,11 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Light and dark themes.
 - Proportional document zoom.
 - Toolbar `Insert` snippets for block-level Markdown structures.
+- Built-in `Find / Replace` panel with `Match case (Aa)` and `Whole word ("")` toggles.
+- Keyboard-driven find flow (`Cmd/Ctrl+F` for Find, `Cmd/Ctrl+R` for Replace panel toggle).
 - Autocomplete hints with configurable trigger key combinations.
+- `File > Open Recent` with real filename + path history entries (up to 10).
+- Formatting toolbar actions (`Bold`, `Italic`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
 - Settings panel for theme, zoom, and autocomplete shortcut preferences.
 - Built-in UI language switching (`English`, `中文`, `日本語`) from Settings.
 - Native file dialogs and desktop shortcuts.

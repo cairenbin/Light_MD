@@ -22,6 +22,10 @@ All notable changes to this project will be documented in this file.
 - Configurable autocomplete trigger key combinations with per-OS availability filtering.
 - UI localization support with Chinese, Japanese, and English language options.
 - Settings-level language selector with persisted language preference.
+- In-app Find/Replace panel with match status indicator, Replace/Replace All actions, and quick toggle behavior.
+- Match options for Find: `Match case (Aa)` and `Match whole word ("")`.
+- File menu `Open Recent` history with real filename + full path labels (up to 10 entries).
+- Formatting toolbar actions and dedicated native `Formatting` menu (`Bold`, `Italic`, `Link`, `Code`, `Quote`).
 
 ### Changed
 
@@ -33,6 +37,9 @@ All notable changes to this project will be documented in this file.
 - Refined toolbar responsive behavior so controls stay on one row at wider compact window sizes.
 - Unified settings panel control styling for theme, zoom, and autocomplete trigger controls.
 - Refined multilingual layout behavior for CJK environments (spacing, control widths, and title styling).
+- Refined find/replace panel placement and interaction to behave like an IDE bottom panel for better layout stability.
+- Updated keyboard behavior for find workflow (`Cmd/Ctrl+F`, `Cmd/Ctrl+R`) to support predictable open/close toggling.
+- Expanded localization coverage for newly added editor actions and find/replace UI copy in English, Chinese, and Japanese.
 
 ### Fixed
 
@@ -42,6 +49,8 @@ All notable changes to this project will be documented in this file.
 - Fixed Insert menu positioning near viewport edges by switching to dynamic viewport-aware placement.
 - Fixed block-level Insert behavior so snippets are not injected into non-empty lines and do not add extra blank lines.
 - Fixed keyboard interaction for autocomplete and insert overlays (focus handling, arrow navigation, and escape behavior).
+- Fixed find result index display edge cases (for example `1/1` initialization when the first match is already active).
+- Fixed replace panel layout breakage under multilingual labels, especially in English/Japanese compact widths.
 
 ### Notes
 

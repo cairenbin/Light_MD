@@ -13,12 +13,14 @@ const SIDEBAR_KEY = "light-md-editor:sidebar-open";
 const ZOOM_KEY = "light-md-editor:zoom-percent";
 const AUTOCOMPLETE_SHORTCUT_KEY = "light-md-editor:autocomplete-shortcut";
 const LOCALE_KEY = "light-md-editor:locale";
+const RECENT_FILES_KEY = "light-md-editor:recent-files";
 const DEFAULT_AUTOCOMPLETE_SHORTCUT_ID = "shift-space";
 const DEFAULT_LOCALE: Locale = "en";
 const DEFAULT_ZOOM_PERCENT = 100;
 const MIN_ZOOM_PERCENT = 80;
 const MAX_ZOOM_PERCENT = 140;
 const ZOOM_STEP = 5;
+const MAX_RECENT_FILES = 10;
 
 type ViewMode = "write" | "split" | "preview";
 type ThemeMode = "light" | "dark";
@@ -49,6 +51,22 @@ type EditorState = {
 
 type PendingCloseRequest = {
   fileId: string;
+};
+
+type FindReplaceState = {
+  isOpen: boolean;
+  query: string;
+  replaceText: string;
+  matchCase: boolean;
+  matchWholeWord: boolean;
+  showReplace: boolean;
+  activeMatchIndex: number;
+};
+
+type EditorHistorySnapshot = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
 };
 
 type TauriMarkdownFile = {
@@ -136,6 +154,11 @@ type TranslationKey =
   | "toolbar.file.open"
   | "toolbar.file.save"
   | "toolbar.insert"
+  | "toolbar.format.bold"
+  | "toolbar.format.italic"
+  | "toolbar.format.link"
+  | "toolbar.format.code"
+  | "toolbar.format.quote"
   | "mode.write"
   | "mode.split"
   | "mode.read"
@@ -159,6 +182,19 @@ type TranslationKey =
   | "dialog.cancel"
   | "dialog.discard"
   | "dialog.save"
+  | "find.placeholder"
+  | "find.replace.placeholder"
+  | "find.matchCase"
+  | "find.matchWholeWord"
+  | "find.previous"
+  | "find.next"
+  | "find.replace"
+  | "find.replaceAll"
+  | "find.close"
+  | "find.toggleReplace.open"
+  | "find.toggleReplace.close"
+  | "find.result"
+  | "find.result.none"
   | "state.draftSaved"
   | "state.unsaved"
   | "state.saved"
@@ -266,6 +302,11 @@ const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.file.open": "Open",
     "toolbar.file.save": "Save",
     "toolbar.insert": "Insert",
+    "toolbar.format.bold": "Bold",
+    "toolbar.format.italic": "Italic",
+    "toolbar.format.link": "Link",
+    "toolbar.format.code": "Code",
+    "toolbar.format.quote": "Quote",
     "mode.write": "Write",
     "mode.split": "Split",
     "mode.read": "Read",
@@ -289,6 +330,19 @@ const translations: Record<Locale, LocaleDictionary> = {
     "dialog.cancel": "Cancel",
     "dialog.discard": "Don't Save",
     "dialog.save": "Save",
+    "find.placeholder": "Find",
+    "find.replace.placeholder": "Replace with",
+    "find.matchCase": "Match case",
+    "find.matchWholeWord": "Match whole word",
+    "find.previous": "Previous",
+    "find.next": "Next",
+    "find.replace": "Replace",
+    "find.replaceAll": "Replace All",
+    "find.close": "Close",
+    "find.toggleReplace.open": "Replace",
+    "find.toggleReplace.close": "Hide Replace",
+    "find.result": "{current}/{total}",
+    "find.result.none": "No matches",
     "state.draftSaved": "Draft saved locally",
     "state.unsaved": "Unsaved changes",
     "state.saved": "Saved",
@@ -304,6 +358,11 @@ const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.file.open": "打开",
     "toolbar.file.save": "保存",
     "toolbar.insert": "插入",
+    "toolbar.format.bold": "加粗",
+    "toolbar.format.italic": "斜体",
+    "toolbar.format.link": "链接",
+    "toolbar.format.code": "代码",
+    "toolbar.format.quote": "引用",
     "mode.write": "编辑",
     "mode.split": "分栏",
     "mode.read": "阅读",
@@ -327,6 +386,19 @@ const translations: Record<Locale, LocaleDictionary> = {
     "dialog.cancel": "取消",
     "dialog.discard": "不保存",
     "dialog.save": "保存",
+    "find.placeholder": "查找",
+    "find.replace.placeholder": "替换为",
+    "find.matchCase": "区分大小写",
+    "find.matchWholeWord": "全词匹配",
+    "find.previous": "上一个",
+    "find.next": "下一个",
+    "find.replace": "替换",
+    "find.replaceAll": "全部替换",
+    "find.close": "关闭",
+    "find.toggleReplace.open": "替换",
+    "find.toggleReplace.close": "收起",
+    "find.result": "{current}/{total}",
+    "find.result.none": "无匹配",
     "state.draftSaved": "草稿已保存到本地",
     "state.unsaved": "有未保存更改",
     "state.saved": "已保存",
@@ -342,6 +414,11 @@ const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.file.open": "開く",
     "toolbar.file.save": "保存",
     "toolbar.insert": "挿入",
+    "toolbar.format.bold": "太字",
+    "toolbar.format.italic": "斜体",
+    "toolbar.format.link": "リンク",
+    "toolbar.format.code": "コード",
+    "toolbar.format.quote": "引用",
     "mode.write": "編集",
     "mode.split": "分割",
     "mode.read": "閲覧",
@@ -365,6 +442,19 @@ const translations: Record<Locale, LocaleDictionary> = {
     "dialog.cancel": "キャンセル",
     "dialog.discard": "保存しない",
     "dialog.save": "保存",
+    "find.placeholder": "検索",
+    "find.replace.placeholder": "置換",
+    "find.matchCase": "大文字/小文字を区別",
+    "find.matchWholeWord": "単語単位で一致",
+    "find.previous": "前へ",
+    "find.next": "次へ",
+    "find.replace": "置換",
+    "find.replaceAll": "すべて置換",
+    "find.close": "閉じる",
+    "find.toggleReplace.open": "置換",
+    "find.toggleReplace.close": "折りたたむ",
+    "find.result": "{current}/{total}",
+    "find.result.none": "一致なし",
     "state.draftSaved": "下書きをローカルに保存しました",
     "state.unsaved": "未保存の変更",
     "state.saved": "保存済み",
@@ -680,6 +770,7 @@ const savedTheme = localStorage.getItem(THEME_KEY);
 const savedZoom = localStorage.getItem(ZOOM_KEY);
 const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY);
 const savedLocale = localStorage.getItem(LOCALE_KEY);
+const recentFiles = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
 const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
 const initialActiveFile = initialSession.openFiles.find((file) => file.id === initialSession.activeFileId)
   ?? initialSession.openFiles[0];
@@ -720,6 +811,13 @@ app.innerHTML = `
         </div>
 
         <nav class="toolbar" aria-label="Editor tools">
+          <div class="formatting-tools" role="group" aria-label="Formatting tools">
+            <button class="icon-text-button" data-action="format-bold" title="Bold"><strong>B</strong></button>
+            <button class="icon-text-button" data-action="format-italic" title="Italic"><em>I</em></button>
+            <button class="icon-text-button" data-action="format-link" title="Link">🔗</button>
+            <button class="icon-text-button" data-action="format-code" title="Code">\`</button>
+            <button class="icon-text-button" data-action="format-quote" title="Quote">❝</button>
+          </div>
           <div class="toolbar-menu-shell">
             <button class="text-button menu-button" data-action="toggle-insert-menu" aria-haspopup="true" aria-expanded="false">
             </button>
@@ -801,6 +899,27 @@ app.innerHTML = `
       <section class="workspace mode-split" aria-label="Markdown editor">
         <textarea class="editor" spellcheck="true" aria-label="Markdown source"></textarea>
         <article class="preview markdown-body" aria-label="Rendered preview"></article>
+        <div class="find-panel hidden" aria-hidden="true">
+          <div class="find-row">
+            <input class="find-input" type="text" />
+            <div class="find-row-controls">
+              <span class="find-status"></span>
+              <button class="text-button subtle-button find-button" data-action="find-prev"></button>
+              <button class="text-button subtle-button find-button" data-action="find-next"></button>
+              <button class="text-button subtle-button find-option-button" data-action="find-match-case" type="button">Aa</button>
+              <button class="text-button subtle-button find-option-button" data-action="find-match-word" type="button">""</button>
+              <button class="text-button subtle-button find-button find-toggle-button" data-action="find-toggle-replace"></button>
+              <button class="text-button subtle-button find-button" data-action="find-close"></button>
+            </div>
+          </div>
+          <div class="find-row replace-row hidden">
+            <input class="replace-input" type="text" />
+            <div class="find-row-controls replace-controls">
+              <button class="text-button subtle-button find-button" data-action="find-replace"></button>
+              <button class="text-button subtle-button find-button" data-action="find-replace-all"></button>
+            </div>
+          </div>
+        </div>
         <div class="autocomplete-panel hidden" aria-hidden="true">
           <div class="autocomplete-title"></div>
           <ul class="autocomplete-list" aria-label="Markdown suggestions"></ul>
@@ -842,6 +961,13 @@ const editor = requireElement<HTMLTextAreaElement>(".editor");
 const preview = requireElement<HTMLElement>(".preview");
 const autocompletePanel = requireElement<HTMLDivElement>(".autocomplete-panel");
 const autocompleteList = requireElement<HTMLUListElement>(".autocomplete-list");
+const formattingButtons = {
+  bold: requireElement<HTMLButtonElement>("[data-action='format-bold']"),
+  italic: requireElement<HTMLButtonElement>("[data-action='format-italic']"),
+  link: requireElement<HTMLButtonElement>("[data-action='format-link']"),
+  code: requireElement<HTMLButtonElement>("[data-action='format-code']"),
+  quote: requireElement<HTMLButtonElement>("[data-action='format-quote']")
+};
 const insertMenuButton = requireElement<HTMLButtonElement>(".menu-button");
 const insertMenu = requireElement<HTMLDivElement>(".insert-menu");
 const settingsMenuButton = requireElement<HTMLButtonElement>(".settings-button");
@@ -874,12 +1000,42 @@ const autocompleteTitle = requireElement<HTMLDivElement>(".autocomplete-title");
 const confirmDialogTitle = requireElement<HTMLHeadingElement>(".confirm-dialog-title");
 const confirmCloseCancelButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-cancel']");
 const confirmCloseDiscardButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-discard']");
+const findPanel = requireElement<HTMLDivElement>(".find-panel");
+const findInput = requireElement<HTMLInputElement>(".find-input");
+const replaceInput = requireElement<HTMLInputElement>(".replace-input");
+const findStatus = requireElement<HTMLSpanElement>(".find-status");
+const replaceRow = requireElement<HTMLDivElement>(".replace-row");
+const findMatchCaseButton = requireElement<HTMLButtonElement>("[data-action='find-match-case']");
+const findMatchWordButton = requireElement<HTMLButtonElement>("[data-action='find-match-word']");
+const findPrevButton = requireElement<HTMLButtonElement>("[data-action='find-prev']");
+const findNextButton = requireElement<HTMLButtonElement>("[data-action='find-next']");
+const findCloseButton = requireElement<HTMLButtonElement>("[data-action='find-close']");
+const findToggleReplaceButton = requireElement<HTMLButtonElement>("[data-action='find-toggle-replace']");
+const findReplaceButton = requireElement<HTMLButtonElement>("[data-action='find-replace']");
+const findReplaceAllButton = requireElement<HTMLButtonElement>("[data-action='find-replace-all']");
 
 let activeScrollSource: "editor" | "preview" = "editor";
 let programmaticScrollSource: "editor" | "preview" | null = null;
 let pendingCloseRequest: PendingCloseRequest | null = null;
 let isInsertMenuOpen = false;
 let isSettingsMenuOpen = false;
+const undoHistoryStack: EditorHistorySnapshot[] = [];
+const redoHistoryStack: EditorHistorySnapshot[] = [];
+let isApplyingHistoryChange = false;
+let currentHistorySnapshot: EditorHistorySnapshot = {
+  value: "",
+  selectionStart: 0,
+  selectionEnd: 0
+};
+const findReplaceState: FindReplaceState = {
+  isOpen: false,
+  query: "",
+  replaceText: "",
+  matchCase: false,
+  matchWholeWord: false,
+  showReplace: false,
+  activeMatchIndex: -1
+};
 const autocompleteState: EditorAutocompleteState = {
   isOpen: false,
   items: [],
@@ -891,7 +1047,9 @@ const autocompleteState: EditorAutocompleteState = {
 };
 
 editor.value = state.content;
+resetEditorHistory();
 void setupMenuListener();
+void syncRecentMenu();
 render();
 persistDraft();
 
@@ -981,6 +1139,54 @@ shortcutSelect.addEventListener("change", () => {
 
 languageSelect.addEventListener("change", () => {
   setLocale(languageSelect.value);
+});
+
+findInput.addEventListener("input", () => {
+  findReplaceState.query = findInput.value;
+  findReplaceState.activeMatchIndex = -1;
+  renderFindPanel();
+});
+
+replaceInput.addEventListener("input", () => {
+  findReplaceState.replaceText = replaceInput.value;
+});
+
+findMatchCaseButton.addEventListener("click", () => {
+  findReplaceState.matchCase = !findReplaceState.matchCase;
+  findReplaceState.activeMatchIndex = -1;
+  renderFindPanel();
+});
+
+findMatchWordButton.addEventListener("click", () => {
+  findReplaceState.matchWholeWord = !findReplaceState.matchWholeWord;
+  findReplaceState.activeMatchIndex = -1;
+  renderFindPanel();
+});
+
+findInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    void findNext(event.shiftKey ? -1 : 1);
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeFindPanel(true);
+  }
+});
+
+replaceInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    void replaceCurrentMatch();
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeFindPanel(true);
+  }
 });
 
 editor.addEventListener("input", () => {
@@ -1132,6 +1338,31 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
+  if (action === "format-bold") {
+    applyFormattingAction("bold");
+    return;
+  }
+
+  if (action === "format-italic") {
+    applyFormattingAction("italic");
+    return;
+  }
+
+  if (action === "format-link") {
+    applyFormattingAction("link");
+    return;
+  }
+
+  if (action === "format-code") {
+    applyFormattingAction("code");
+    return;
+  }
+
+  if (action === "format-quote") {
+    applyFormattingAction("quote");
+    return;
+  }
+
   if (action === "insert-snippet" && target.dataset.insertId) {
     applyInsertMenuItem(target.dataset.insertId);
     return;
@@ -1184,6 +1415,36 @@ app.addEventListener("click", async (event) => {
 
   if (action === "confirm-close-save") {
     await saveAndClosePendingFile();
+    return;
+  }
+
+  if (action === "find-prev") {
+    await findNext(-1);
+    return;
+  }
+
+  if (action === "find-next") {
+    await findNext(1);
+    return;
+  }
+
+  if (action === "find-close") {
+    closeFindPanel(true);
+    return;
+  }
+
+  if (action === "find-toggle-replace") {
+    toggleFindReplaceMode();
+    return;
+  }
+
+  if (action === "find-replace") {
+    await replaceCurrentMatch();
+    return;
+  }
+
+  if (action === "find-replace-all") {
+    await replaceAllMatches();
   }
 });
 
@@ -1206,9 +1467,27 @@ document.addEventListener("keydown", async (event) => {
     return;
   }
 
+  if (event.key === "Escape" && findReplaceState.isOpen) {
+    event.preventDefault();
+    closeFindPanel(true);
+    return;
+  }
+
   const isCommand = event.metaKey || event.ctrlKey;
 
   if (!isCommand) {
+    return;
+  }
+
+  if (event.key.toLowerCase() === "z" && !event.altKey) {
+    event.preventDefault();
+    await performEditorAction(event.shiftKey ? "redo" : "undo");
+    return;
+  }
+
+  if (event.key.toLowerCase() === "y" && !event.altKey) {
+    event.preventDefault();
+    await performEditorAction("redo");
     return;
   }
 
@@ -1225,6 +1504,36 @@ document.addEventListener("keydown", async (event) => {
   if (event.key.toLowerCase() === "n") {
     event.preventDefault();
     createNewDocument();
+  }
+
+  if (event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    if (findReplaceState.isOpen && !findReplaceState.showReplace) {
+      closeFindPanel(true);
+    } else {
+      openFindPanel(false);
+    }
+    return;
+  }
+
+  if (event.key.toLowerCase() === "h") {
+    event.preventDefault();
+    if (findReplaceState.isOpen && findReplaceState.showReplace) {
+      closeFindPanel(true);
+    } else {
+      openFindPanel(true);
+    }
+    return;
+  }
+
+  if (event.key.toLowerCase() === "r") {
+    event.preventDefault();
+    if (findReplaceState.isOpen && findReplaceState.showReplace) {
+      closeFindPanel(true);
+    } else {
+      openFindPanel(true);
+    }
+    return;
   }
 });
 
@@ -1254,6 +1563,7 @@ function render() {
   renderTheme();
   renderZoom();
   renderDocuments();
+  renderFindPanel();
   renderInsertMenu();
   renderSettingsMenu();
   renderShortcuts();
@@ -1297,6 +1607,16 @@ function renderLocale() {
   fileActionButtons.save.textContent = t("toolbar.file.save");
 
   insertMenuButton.textContent = t("toolbar.insert");
+  formattingButtons.bold.setAttribute("title", t("toolbar.format.bold"));
+  formattingButtons.bold.setAttribute("aria-label", t("toolbar.format.bold"));
+  formattingButtons.italic.setAttribute("title", t("toolbar.format.italic"));
+  formattingButtons.italic.setAttribute("aria-label", t("toolbar.format.italic"));
+  formattingButtons.link.setAttribute("title", t("toolbar.format.link"));
+  formattingButtons.link.setAttribute("aria-label", t("toolbar.format.link"));
+  formattingButtons.code.setAttribute("title", t("toolbar.format.code"));
+  formattingButtons.code.setAttribute("aria-label", t("toolbar.format.code"));
+  formattingButtons.quote.setAttribute("title", t("toolbar.format.quote"));
+  formattingButtons.quote.setAttribute("aria-label", t("toolbar.format.quote"));
 
   const writeButton = modeButtons.find((button) => button.dataset.mode === "write");
   const splitButton = modeButtons.find((button) => button.dataset.mode === "split");
@@ -1335,6 +1655,19 @@ function renderLocale() {
   confirmCloseCancelButton.textContent = t("dialog.cancel");
   confirmCloseDiscardButton.textContent = t("dialog.discard");
   confirmCloseSaveButton.textContent = t("dialog.save");
+
+  findInput.placeholder = t("find.placeholder");
+  replaceInput.placeholder = t("find.replace.placeholder");
+  findPrevButton.textContent = t("find.previous");
+  findNextButton.textContent = t("find.next");
+  findCloseButton.textContent = t("find.close");
+  findToggleReplaceButton.textContent = findReplaceState.showReplace
+    ? t("find.toggleReplace.close")
+    : t("find.toggleReplace.open");
+  findReplaceButton.textContent = t("find.replace");
+  findReplaceAllButton.textContent = t("find.replaceAll");
+  findMatchCaseButton.title = t("find.matchCase");
+  findMatchWordButton.title = t("find.matchWholeWord");
 }
 
 function renderMode() {
@@ -1512,6 +1845,75 @@ function renderAutocomplete() {
   ensureAutocompleteItemVisible();
 }
 
+function renderFindPanel() {
+  findPanel.classList.toggle("hidden", !findReplaceState.isOpen);
+  findPanel.setAttribute("aria-hidden", String(!findReplaceState.isOpen));
+  replaceRow.classList.toggle("hidden", !findReplaceState.showReplace);
+  findToggleReplaceButton.textContent = findReplaceState.showReplace
+    ? t("find.toggleReplace.close")
+    : t("find.toggleReplace.open");
+  findToggleReplaceButton.setAttribute("aria-pressed", String(findReplaceState.showReplace));
+  findToggleReplaceButton.classList.toggle("active", findReplaceState.showReplace);
+  findInput.value = findReplaceState.query;
+  replaceInput.value = findReplaceState.replaceText;
+  findMatchCaseButton.classList.toggle("active", findReplaceState.matchCase);
+  findMatchWordButton.classList.toggle("active", findReplaceState.matchWholeWord);
+  findMatchCaseButton.setAttribute("aria-pressed", String(findReplaceState.matchCase));
+  findMatchWordButton.setAttribute("aria-pressed", String(findReplaceState.matchWholeWord));
+  findMatchCaseButton.title = `${t("find.matchCase")} (${findReplaceState.matchCase ? "on" : "off"})`;
+  findMatchWordButton.title = `${t("find.matchWholeWord")} (${findReplaceState.matchWholeWord ? "on" : "off"})`;
+
+  const matches = getFindMatches();
+  const hasQuery = findReplaceState.query.length > 0;
+  const hasMatches = matches.length > 0;
+  const currentMatchIndex = hasMatches ? getCurrentFindMatchIndex(matches) : -1;
+  findReplaceState.activeMatchIndex = currentMatchIndex;
+  const current = currentMatchIndex >= 0 ? currentMatchIndex + 1 : 0;
+  findStatus.textContent = hasQuery
+    ? hasMatches
+      ? formatMessage(t("find.result"), { current: String(current), total: String(matches.length) })
+      : t("find.result.none")
+    : "";
+
+  findPrevButton.disabled = !hasMatches;
+  findNextButton.disabled = !hasMatches;
+  findReplaceButton.disabled = !hasMatches;
+  findReplaceAllButton.disabled = !hasMatches;
+}
+
+function getCurrentFindMatchIndex(matches: Array<{ start: number; end: number }>) {
+  if (matches.length === 0) {
+    return -1;
+  }
+
+  const selectionStart = editor.selectionStart ?? 0;
+  const selectionEnd = editor.selectionEnd ?? selectionStart;
+  const selectedIndex = matches.findIndex((match) => match.start === selectionStart && match.end === selectionEnd);
+
+  if (selectedIndex >= 0) {
+    return selectedIndex;
+  }
+
+  if (findReplaceState.activeMatchIndex >= 0 && findReplaceState.activeMatchIndex < matches.length) {
+    return findReplaceState.activeMatchIndex;
+  }
+
+  const caret = selectionEnd;
+  const containingIndex = matches.findIndex((match) => caret >= match.start && caret <= match.end);
+
+  if (containingIndex >= 0) {
+    return containingIndex;
+  }
+
+  const nextIndex = matches.findIndex((match) => match.start >= caret);
+
+  if (nextIndex >= 0) {
+    return nextIndex;
+  }
+
+  return 0;
+}
+
 function ensureAutocompleteItemVisible() {
   if (!autocompleteState.isOpen) {
     return;
@@ -1611,6 +2013,32 @@ async function openDocument() {
   }
 }
 
+async function openRecentDocument(index: number) {
+  const recentPath = recentFiles[index];
+
+  if (!recentPath) {
+    return;
+  }
+
+  try {
+    const file = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", {
+      path: recentPath
+    });
+
+    if (!file) {
+      removeRecentFile(recentPath);
+      renderSaveState(t("state.openFailed"));
+      return;
+    }
+
+    loadNativeFile(file);
+  } catch (error) {
+    console.error(error);
+    removeRecentFile(recentPath);
+    renderSaveState(t("state.openFailed"));
+  }
+}
+
 async function saveDocument() {
   return saveCurrentDocument();
 }
@@ -1633,6 +2061,7 @@ async function saveCurrentDocument(forceDialog = false) {
 
     state.fileName = savedFile.name;
     state.nativePath = savedFile.path;
+    pushRecentFile(savedFile.path);
     titleInput.value = state.fileName;
     markSaved();
     return true;
@@ -1644,6 +2073,7 @@ async function saveCurrentDocument(forceDialog = false) {
 }
 
 function loadNativeFile(file: TauriMarkdownFile) {
+  pushRecentFile(file.path);
   const existingIndex = state.openFiles.findIndex((item) => item.nativePath === file.path);
 
   if (existingIndex >= 0) {
@@ -1701,6 +2131,49 @@ function markSaved(message = t("state.saved")) {
   renderSaveState(message);
 }
 
+function pushRecentFile(path: string) {
+  const trimmed = path.trim();
+
+  if (!trimmed) {
+    return;
+  }
+
+  const existingIndex = recentFiles.findIndex((entry) => entry === trimmed);
+
+  if (existingIndex >= 0) {
+    recentFiles.splice(existingIndex, 1);
+  }
+
+  recentFiles.unshift(trimmed);
+
+  if (recentFiles.length > MAX_RECENT_FILES) {
+    recentFiles.splice(MAX_RECENT_FILES);
+  }
+
+  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(recentFiles));
+  void syncRecentMenu();
+}
+
+function removeRecentFile(path: string) {
+  const index = recentFiles.findIndex((entry) => entry === path);
+
+  if (index < 0) {
+    return;
+  }
+
+  recentFiles.splice(index, 1);
+  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(recentFiles));
+  void syncRecentMenu();
+}
+
+async function syncRecentMenu() {
+  try {
+    await invoke("update_recent_menu", { paths: recentFiles });
+  } catch (error) {
+    console.error("Could not update recent menu.", error);
+  }
+}
+
 function createOpenFile(
   name: string,
   content: string,
@@ -1731,6 +2204,7 @@ function activateFile(fileId: string) {
   activeScrollSource = "editor";
   editor.value = file.content;
   titleInput.value = file.name;
+  resetEditorHistory();
   closeAutocomplete();
   persistDraft();
 }
@@ -1860,6 +2334,53 @@ function toggleInsertMenu() {
   openInsertMenu(0);
 }
 
+function openFindPanel(showReplace: boolean) {
+  findReplaceState.isOpen = true;
+  findReplaceState.showReplace = showReplace;
+  const selectedText = editor.value.slice(editor.selectionStart ?? 0, editor.selectionEnd ?? 0).trim();
+
+  if (selectedText) {
+    findReplaceState.query = selectedText;
+    findReplaceState.activeMatchIndex = -1;
+  }
+
+  closeInsertMenu();
+  closeSettingsMenu();
+  closeAutocomplete();
+  renderFindPanel();
+  window.setTimeout(() => {
+    findInput.focus();
+    findInput.select();
+  }, 0);
+}
+
+function toggleFindReplaceMode() {
+  findReplaceState.showReplace = !findReplaceState.showReplace;
+  renderFindPanel();
+  window.setTimeout(() => {
+    if (findReplaceState.showReplace) {
+      replaceInput.focus();
+      return;
+    }
+
+    findInput.focus();
+  }, 0);
+}
+
+function closeFindPanel(restoreFocus = false) {
+  if (!findReplaceState.isOpen) {
+    return;
+  }
+
+  findReplaceState.isOpen = false;
+  findReplaceState.activeMatchIndex = -1;
+  renderFindPanel();
+
+  if (restoreFocus) {
+    editor.focus();
+  }
+}
+
 function openInsertMenu(focusIndex = 0) {
   isInsertMenuOpen = true;
   closeSettingsMenu();
@@ -1914,6 +2435,187 @@ function updateInsertMenuPosition() {
   insertMenu.style.top = `${Math.round(clampedTop)}px`;
   insertMenu.style.width = `${Math.round(menuWidth)}px`;
   insertMenu.style.maxHeight = `${Math.round(maxHeight)}px`;
+}
+
+function getFindMatches() {
+  const query = findReplaceState.query;
+
+  if (!query) {
+    return [] as Array<{ start: number; end: number }>;
+  }
+
+  const source = findReplaceState.matchCase ? editor.value : editor.value.toLowerCase();
+  const needle = findReplaceState.matchCase ? query : query.toLowerCase();
+  const matches: Array<{ start: number; end: number }> = [];
+  let index = 0;
+
+  while (index <= source.length - needle.length) {
+    const nextIndex = source.indexOf(needle, index);
+
+    if (nextIndex < 0) {
+      break;
+    }
+
+    if (findReplaceState.matchWholeWord && !isWholeWordMatch(source, nextIndex, needle.length)) {
+      index = nextIndex + Math.max(needle.length, 1);
+      continue;
+    }
+
+    matches.push({ start: nextIndex, end: nextIndex + needle.length });
+    index = nextIndex + Math.max(needle.length, 1);
+  }
+
+  return matches;
+}
+
+function isWholeWordMatch(source: string, start: number, length: number) {
+  const before = start > 0 ? source[start - 1] : "";
+  const after = start + length < source.length ? source[start + length] : "";
+  const wordPattern = /[\p{L}\p{N}_]/u;
+
+  if (before && wordPattern.test(before)) {
+    return false;
+  }
+
+  if (after && wordPattern.test(after)) {
+    return false;
+  }
+
+  return true;
+}
+
+async function findNext(direction: 1 | -1) {
+  const matches = getFindMatches();
+
+  if (matches.length === 0) {
+    findReplaceState.activeMatchIndex = -1;
+    renderFindPanel();
+    return;
+  }
+
+  const selectionStart = editor.selectionStart ?? 0;
+  const selectionEnd = editor.selectionEnd ?? selectionStart;
+  let nextIndex = -1;
+
+  if (direction > 0) {
+    nextIndex = matches.findIndex((match) => match.start > selectionEnd);
+
+    if (nextIndex < 0) {
+      nextIndex = 0;
+    }
+  } else {
+    nextIndex = matches.length - 1;
+
+    for (let index = matches.length - 1; index >= 0; index -= 1) {
+      if (matches[index].end < selectionStart) {
+        nextIndex = index;
+        break;
+      }
+    }
+  }
+
+  findReplaceState.activeMatchIndex = nextIndex;
+  const match = matches[nextIndex];
+  editor.focus();
+  editor.setSelectionRange(match.start, match.end);
+  renderFindPanel();
+}
+
+async function replaceCurrentMatch() {
+  const matches = getFindMatches();
+
+  if (matches.length === 0) {
+    return;
+  }
+
+  const selectedStart = editor.selectionStart ?? 0;
+  const selectedEnd = editor.selectionEnd ?? 0;
+  let targetIndex = matches.findIndex((match) => match.start === selectedStart && match.end === selectedEnd);
+
+  if (targetIndex < 0) {
+    await findNext(1);
+    return;
+  }
+
+  const match = matches[targetIndex];
+  applyEditorEdit({
+    start: match.start,
+    end: match.end,
+    text: findReplaceState.replaceText
+  });
+
+  const delta = findReplaceState.replaceText.length;
+  editor.setSelectionRange(match.start, match.start + delta);
+
+  const nextMatches = getFindMatches();
+  if (nextMatches.length === 0) {
+    findReplaceState.activeMatchIndex = -1;
+    renderFindPanel();
+    return;
+  }
+
+  targetIndex = Math.min(targetIndex, nextMatches.length - 1);
+  findReplaceState.activeMatchIndex = targetIndex;
+  renderFindPanel();
+  await findNext(1);
+}
+
+async function replaceAllMatches() {
+  const matches = getFindMatches();
+
+  if (matches.length === 0) {
+    return;
+  }
+
+  const source = editor.value;
+  let cursor = 0;
+  const chunks: string[] = [];
+
+  for (const match of matches) {
+    chunks.push(source.slice(cursor, match.start));
+    chunks.push(findReplaceState.replaceText);
+    cursor = match.end;
+  }
+
+  chunks.push(source.slice(cursor));
+  editor.value = chunks.join("");
+  syncTextFieldState(editor);
+  findReplaceState.activeMatchIndex = -1;
+  renderFindPanel();
+}
+
+function applyFormattingAction(action: "bold" | "italic" | "link" | "code" | "quote") {
+  if (state.mode === "preview") {
+    setMode("write");
+  }
+
+  const context = getEditorAutocompleteContext();
+
+  if (action === "quote") {
+    const quoteItem = editorAutocompleteItems.find((item) => item.id === "blockquote");
+    if (!quoteItem) {
+      return;
+    }
+    applyEditorEdit(quoteItem.buildEdit(context));
+    return;
+  }
+
+  if (action === "bold") {
+    applyEditorEdit(buildWrappedEdit(context, "**", "**", "bold text"));
+    return;
+  }
+
+  if (action === "italic") {
+    applyEditorEdit(buildWrappedEdit(context, "_", "_", "emphasis"));
+    return;
+  }
+
+  if (action === "link") {
+    applyEditorEdit(buildLinkEdit(context, false));
+    return;
+  }
+
+  applyEditorEdit(buildWrappedEdit(context, "`", "`", "code"));
 }
 
 function applyInsertMenuItem(insertId: string) {
@@ -2154,15 +2856,14 @@ function applyAutocompleteItem(index: number) {
 }
 
 function applyEditorEdit(edit: EditorSelectionEdit) {
-  const nextValue = editor.value.slice(0, edit.start) + edit.text + editor.value.slice(edit.end);
-
-  editor.value = nextValue;
   const nextSelectionStart = edit.selectionStart ?? edit.start + edit.text.length;
   const nextSelectionEnd = edit.selectionEnd ?? nextSelectionStart;
 
-  syncTextFieldState(editor);
   editor.focus();
+  editor.setSelectionRange(edit.start, edit.end);
+  editor.setRangeText(edit.text, edit.start, edit.end, "end");
   editor.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+  syncTextFieldState(editor);
 }
 
 function getEditorAutocompleteContext(): EditorAutocompleteContext {
@@ -2322,6 +3023,22 @@ async function setupMenuListener() {
       case "file.open":
         await openDocument();
         break;
+      case "file.open_recent.1":
+      case "file.open_recent.2":
+      case "file.open_recent.3":
+      case "file.open_recent.4":
+      case "file.open_recent.5":
+      case "file.open_recent.6":
+      case "file.open_recent.7":
+      case "file.open_recent.8":
+      case "file.open_recent.9":
+      case "file.open_recent.10": {
+        const index = Number(event.payload.split(".").at(-1)) - 1;
+        if (Number.isInteger(index) && index >= 0) {
+          await openRecentDocument(index);
+        }
+        break;
+      }
       case "file.save":
         await saveDocument();
         break;
@@ -2355,23 +3072,26 @@ async function setupMenuListener() {
       case "view.toggle_theme":
         setTheme(state.theme === "light" ? "dark" : "light");
         break;
-      case "edit.undo":
-        await performEditorAction("undo");
+      case "edit.find":
+        openFindPanel(false);
         break;
-      case "edit.redo":
-        await performEditorAction("redo");
+      case "edit.replace":
+        openFindPanel(true);
         break;
-      case "edit.cut":
-        await performEditorAction("cut");
+      case "format.bold":
+        applyFormattingAction("bold");
         break;
-      case "edit.copy":
-        await performEditorAction("copy");
+      case "format.italic":
+        applyFormattingAction("italic");
         break;
-      case "edit.paste":
-        await performEditorAction("paste");
+      case "format.link":
+        applyFormattingAction("link");
         break;
-      case "edit.select_all":
-        await performEditorAction("selectAll");
+      case "format.code":
+        applyFormattingAction("code");
+        break;
+      case "format.quote":
+        applyFormattingAction("quote");
         break;
       default:
         break;
@@ -2483,6 +3203,18 @@ async function performEditorAction(
     return;
   }
 
+  if (target === editor && action === "undo") {
+    if (undoEditorHistory()) {
+      return;
+    }
+  }
+
+  if (target === editor && action === "redo") {
+    if (redoEditorHistory()) {
+      return;
+    }
+  }
+
   document.execCommand(action);
   syncTextFieldState(target);
 }
@@ -2502,16 +3234,95 @@ async function copySelection(target: HTMLInputElement | HTMLTextAreaElement) {
 function replaceSelection(target: HTMLInputElement | HTMLTextAreaElement, nextText: string) {
   const start = target.selectionStart ?? 0;
   const end = target.selectionEnd ?? 0;
-  const value = target.value;
 
-  target.value = `${value.slice(0, start)}${nextText}${value.slice(end)}`;
-
+  target.setRangeText(nextText, start, end, "end");
   const cursor = start + nextText.length;
   target.setSelectionRange(cursor, cursor);
 }
 
+function captureEditorHistorySnapshot() {
+  const nextSnapshot = readEditorHistorySnapshot();
+
+  if (
+    nextSnapshot.value === currentHistorySnapshot.value
+    && nextSnapshot.selectionStart === currentHistorySnapshot.selectionStart
+    && nextSnapshot.selectionEnd === currentHistorySnapshot.selectionEnd
+  ) {
+    return;
+  }
+
+  undoHistoryStack.push(currentHistorySnapshot);
+
+  if (undoHistoryStack.length > 500) {
+    undoHistoryStack.shift();
+  }
+
+  redoHistoryStack.length = 0;
+  currentHistorySnapshot = nextSnapshot;
+}
+
+function readEditorHistorySnapshot(): EditorHistorySnapshot {
+  return {
+    value: editor.value,
+    selectionStart: editor.selectionStart ?? 0,
+    selectionEnd: editor.selectionEnd ?? (editor.selectionStart ?? 0)
+  };
+}
+
+function applyEditorHistorySnapshot(snapshot: EditorHistorySnapshot) {
+  isApplyingHistoryChange = true;
+  editor.value = snapshot.value;
+  editor.focus();
+  editor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+  currentHistorySnapshot = readEditorHistorySnapshot();
+  syncTextFieldState(editor);
+  isApplyingHistoryChange = false;
+}
+
+function resetEditorHistory() {
+  undoHistoryStack.length = 0;
+  redoHistoryStack.length = 0;
+  currentHistorySnapshot = readEditorHistorySnapshot();
+}
+
+function undoEditorHistory() {
+  if (undoHistoryStack.length === 0) {
+    return false;
+  }
+
+  const previousSnapshot = undoHistoryStack.pop();
+
+  if (!previousSnapshot) {
+    return false;
+  }
+
+  redoHistoryStack.push(readEditorHistorySnapshot());
+  applyEditorHistorySnapshot(previousSnapshot);
+  return true;
+}
+
+function redoEditorHistory() {
+  if (redoHistoryStack.length === 0) {
+    return false;
+  }
+
+  const nextSnapshot = redoHistoryStack.pop();
+
+  if (!nextSnapshot) {
+    return false;
+  }
+
+  undoHistoryStack.push(readEditorHistorySnapshot());
+  applyEditorHistorySnapshot(nextSnapshot);
+  return true;
+}
+
 function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
   if (target === editor) {
+    if (!isApplyingHistoryChange) {
+      captureEditorHistorySnapshot();
+    }
+
     state.content = editor.value;
     state.isDirty = true;
     activeScrollSource = "editor";
@@ -2693,6 +3504,27 @@ function parseSavedAutocompleteShortcutId(value: string | null) {
   return availableOptions.some((option) => option.id === value)
     ? value
     : defaultOption.id;
+}
+
+function parseSavedRecentFiles(value: string | null) {
+  if (!value) {
+    return [] as string[];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [] as string[];
+    }
+
+    return parsed
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(0, MAX_RECENT_FILES);
+  } catch (error) {
+    console.error("Could not parse recent files.", error);
+    return [] as string[];
+  }
 }
 
 function parseSavedLocale(value: string | null): Locale {

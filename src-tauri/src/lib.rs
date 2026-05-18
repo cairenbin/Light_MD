@@ -30,15 +30,26 @@ pub fn run() {
                 menu_id,
                 "file.new"
                     | "file.open"
+                    | "file.open_recent.1"
+                    | "file.open_recent.2"
+                    | "file.open_recent.3"
+                    | "file.open_recent.4"
+                    | "file.open_recent.5"
+                    | "file.open_recent.6"
+                    | "file.open_recent.7"
+                    | "file.open_recent.8"
+                    | "file.open_recent.9"
+                    | "file.open_recent.10"
                     | "file.save"
                     | "file.save_as"
                     | "file.close"
-                    | "edit.undo"
-                    | "edit.redo"
-                    | "edit.cut"
-                    | "edit.copy"
-                    | "edit.paste"
-                    | "edit.select_all"
+                    | "edit.find"
+                    | "edit.replace"
+                    | "format.bold"
+                    | "format.italic"
+                    | "format.link"
+                    | "format.code"
+                    | "format.quote"
                     | "view.write"
                     | "view.split"
                     | "view.preview"
@@ -53,6 +64,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_markdown_file,
+            open_markdown_file_from_path,
+            update_recent_menu,
             save_markdown_file
         ])
         .run(tauri::generate_context!())
@@ -80,19 +93,16 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
     )?;
     let close_file =
         MenuItem::with_id(app, "file.close", "Close Document", true, Some("CmdOrCtrl+W"))?;
+    let find = MenuItem::with_id(app, "edit.find", "Find", true, Some("CmdOrCtrl+F"))?;
+    let replace = MenuItem::with_id(app, "edit.replace", "Replace", true, Some("CmdOrCtrl+H"))?;
 
-    let undo = MenuItem::with_id(app, "edit.undo", "Undo", true, Some("CmdOrCtrl+Z"))?;
-    let redo = MenuItem::with_id(app, "edit.redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?;
-    let cut = MenuItem::with_id(app, "edit.cut", "Cut", true, Some("CmdOrCtrl+X"))?;
-    let copy = MenuItem::with_id(app, "edit.copy", "Copy", true, Some("CmdOrCtrl+C"))?;
-    let paste = MenuItem::with_id(app, "edit.paste", "Paste", true, Some("CmdOrCtrl+V"))?;
-    let select_all = MenuItem::with_id(
-        app,
-        "edit.select_all",
-        "Select All",
-        true,
-        Some("CmdOrCtrl+A"),
-    )?;
+    let format_bold = MenuItem::with_id(app, "format.bold", "Bold", true, Some("CmdOrCtrl+B"))?;
+    let format_italic = MenuItem::with_id(app, "format.italic", "Italic", true, Some("CmdOrCtrl+I"))?;
+    let format_link =
+        MenuItem::with_id(app, "format.link", "Link", true, Some("CmdOrCtrl+Shift+K"))?;
+    let format_code = MenuItem::with_id(app, "format.code", "Code", true, Some("CmdOrCtrl+E"))?;
+    let format_quote =
+        MenuItem::with_id(app, "format.quote", "Blockquote", true, Some("CmdOrCtrl+Shift+."))?;
 
     let write_mode = MenuItem::with_id(app, "view.write", "Write Mode", true, Some("Alt+1"))?;
     let split_mode = MenuItem::with_id(app, "view.split", "Split Mode", true, Some("Alt+2"))?;
@@ -122,13 +132,22 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
         Some("CmdOrCtrl+Alt+T"),
     )?;
 
-    let file_menu = Submenu::with_items(
+    let file_menu = Submenu::with_id_and_items(
         app,
+        "file.menu",
         "File",
         true,
         &[
             &new_file,
             &open_file,
+            &PredefinedMenuItem::separator(app)?,
+            &Submenu::with_id_and_items(
+                app,
+                "file.open_recent",
+                "Open Recent",
+                true,
+                &[],
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &save_file,
             &save_as_file,
@@ -146,15 +165,25 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
         "Edit",
         true,
         &[
-            &undo,
-            &redo,
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
             &PredefinedMenuItem::separator(app)?,
-            &cut,
-            &copy,
-            &paste,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
             &PredefinedMenuItem::separator(app)?,
-            &select_all,
+            &PredefinedMenuItem::select_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &find,
+            &replace,
         ],
+    )?;
+
+    let formatting_menu = Submenu::with_items(
+        app,
+        "Formatting",
+        true,
+        &[&format_bold, &format_italic, &format_link, &format_code, &format_quote],
     )?;
 
     let view_menu = Submenu::with_items(
@@ -208,6 +237,7 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
             )?,
             &file_menu,
             &edit_menu,
+            &formatting_menu,
             &view_menu,
             &help_menu,
         ],
@@ -224,6 +254,63 @@ fn open_markdown_file() -> Result<Option<MarkdownFile>, String> {
     };
 
     read_markdown_file_from_path(path).map(Some)
+}
+
+#[tauri::command]
+fn open_markdown_file_from_path(path: String) -> Result<Option<MarkdownFile>, String> {
+    if path.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let path = PathBuf::from(path);
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    read_markdown_file_from_path(path).map(Some)
+}
+
+#[tauri::command]
+fn update_recent_menu(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
+    let Some(menu) = app.menu() else {
+        return Ok(());
+    };
+
+    let Some(file_menu_item) = menu.get("file.menu") else {
+        return Ok(());
+    };
+
+    let Some(file_submenu) = file_menu_item.as_submenu() else {
+        return Ok(());
+    };
+
+    let Some(recent_submenu_item) = file_submenu.get("file.open_recent") else {
+        return Ok(());
+    };
+
+    let Some(recent_submenu) = recent_submenu_item.as_submenu() else {
+        return Ok(());
+    };
+
+    while recent_submenu.remove_at(0).map_err(|error| error.to_string())?.is_some() {}
+
+    for (index, path) in paths.iter().take(10).enumerate() {
+        let item = MenuItem::with_id(
+            &app,
+            format!("file.open_recent.{}", index + 1),
+            format_recent_menu_label(path),
+            true,
+            None::<&str>,
+        )
+        .map_err(|error| error.to_string())?;
+
+        recent_submenu
+            .append(&item)
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -270,4 +357,16 @@ fn file_name(path: &PathBuf) -> String {
         .and_then(|name| name.to_str())
         .unwrap_or("Untitled.md")
         .to_string()
+}
+
+fn format_recent_menu_label(path: &str) -> String {
+    let path_buf = PathBuf::from(path);
+    let file_name = file_name(&path_buf);
+    let escaped_file_name = escape_menu_mnemonic(&file_name);
+    let escaped_path = escape_menu_mnemonic(path);
+    format!("{escaped_file_name} — {escaped_path}")
+}
+
+fn escape_menu_mnemonic(value: &str) -> String {
+    value.replace('&', "&&")
 }
