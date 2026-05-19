@@ -841,7 +841,7 @@ app.innerHTML = `
             </button>
             <div class="settings-menu hidden" aria-hidden="true">
               <section class="settings-group" aria-label="Theme">
-                <h3 class="settings-group-title"></h3>
+                <h3 class="settings-group-title" data-settings-group="theme"></h3>
                 <div class="settings-choice" role="group" aria-label="Theme mode">
                   <button class="settings-option-button" data-action="set-theme" data-theme-value="light"></button>
                   <button class="settings-option-button" data-action="set-theme" data-theme-value="dark"></button>
@@ -849,7 +849,7 @@ app.innerHTML = `
               </section>
 
               <section class="settings-group" aria-label="Document zoom">
-                <h3 class="settings-group-title"></h3>
+                <h3 class="settings-group-title" data-settings-group="zoom"></h3>
                 <div class="font-controls settings-zoom-controls" role="group" aria-label="Document zoom">
                   <button class="font-button" data-action="font-decrease" aria-label="">A-</button>
                   <span class="font-size-label settings-zoom-label" aria-label="Current document zoom">100%</span>
@@ -858,17 +858,17 @@ app.innerHTML = `
               </section>
 
               <section class="settings-group" aria-label="Autocomplete shortcut">
-                <h3 class="settings-group-title"></h3>
+                <h3 class="settings-group-title" data-settings-group="autocomplete"></h3>
                 <label class="settings-field">
-                  <span class="settings-field-label"></span>
+                  <span class="settings-field-label" data-settings-field="trigger"></span>
                   <select class="settings-shortcut-select" aria-label="Autocomplete shortcut"></select>
                 </label>
               </section>
 
               <section class="settings-group" aria-label="Language">
-                <h3 class="settings-group-title"></h3>
+                <h3 class="settings-group-title" data-settings-group="language"></h3>
                 <label class="settings-field">
-                  <span class="settings-field-label"></span>
+                  <span class="settings-field-label" data-settings-field="language"></span>
                   <select class="settings-language-select" aria-label="Language"></select>
                 </label>
               </section>
@@ -1636,17 +1636,17 @@ function renderLocale() {
 
   settingsMenuButton.setAttribute("title", t("settings.open"));
   settingsMenuButton.setAttribute("aria-label", t("settings.open"));
-  themeOptionButtons[0].textContent = t("settings.theme.light");
-  themeOptionButtons[1].textContent = t("settings.theme.dark");
+  setTextByDataAttr(themeOptionButtons, "themeValue", "light", t("settings.theme.light"));
+  setTextByDataAttr(themeOptionButtons, "themeValue", "dark", t("settings.theme.dark"));
   fontDecreaseButton.setAttribute("aria-label", t("settings.zoom.out"));
   fontIncreaseButton.setAttribute("aria-label", t("settings.zoom.in"));
 
-  settingsGroupTitles[0].textContent = t("settings.theme");
-  settingsGroupTitles[1].textContent = t("settings.zoom");
-  settingsGroupTitles[2].textContent = t("settings.autocomplete");
-  settingsGroupTitles[3].textContent = t("settings.language");
-  settingsFieldLabels[0].textContent = t("settings.trigger");
-  settingsFieldLabels[1].textContent = t("settings.language");
+  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "theme", t("settings.theme"));
+  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "zoom", t("settings.zoom"));
+  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "autocomplete", t("settings.autocomplete"));
+  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "language", t("settings.language"));
+  setTextByDataAttr(settingsFieldLabels, "settingsField", "trigger", t("settings.trigger"));
+  setTextByDataAttr(settingsFieldLabels, "settingsField", "language", t("settings.language"));
 
   drawerSectionTitle.textContent = t("drawer.openDocuments");
   drawerNoteTitle.textContent = t("drawer.shortcuts");
@@ -2077,13 +2077,16 @@ function loadNativeFile(file: TauriMarkdownFile) {
   const existingIndex = state.openFiles.findIndex((item) => item.nativePath === file.path);
 
   if (existingIndex >= 0) {
-    state.openFiles[existingIndex] = {
-      ...state.openFiles[existingIndex],
-      name: file.name,
-      content: file.content,
-      nativePath: file.path,
-      isDirty: false
-    };
+    const existing = state.openFiles[existingIndex];
+    if (!existing.isDirty) {
+      state.openFiles[existingIndex] = {
+        ...existing,
+        name: file.name,
+        content: file.content,
+        nativePath: file.path,
+        isDirty: false
+      };
+    }
     activateFile(state.openFiles[existingIndex].id);
   } else {
     const openFile = createOpenFile(file.name, file.content, false, file.path);
@@ -2348,23 +2351,23 @@ function openFindPanel(showReplace: boolean) {
   closeSettingsMenu();
   closeAutocomplete();
   renderFindPanel();
-  window.setTimeout(() => {
+  window.requestAnimationFrame(() => {
     findInput.focus();
     findInput.select();
-  }, 0);
+  });
 }
 
 function toggleFindReplaceMode() {
   findReplaceState.showReplace = !findReplaceState.showReplace;
   renderFindPanel();
-  window.setTimeout(() => {
+  window.requestAnimationFrame(() => {
     if (findReplaceState.showReplace) {
       replaceInput.focus();
       return;
     }
 
     findInput.focus();
-  }, 0);
+  });
 }
 
 function closeFindPanel(restoreFocus = false) {
@@ -2444,25 +2447,27 @@ function getFindMatches() {
     return [] as Array<{ start: number; end: number }>;
   }
 
-  const source = findReplaceState.matchCase ? editor.value : editor.value.toLowerCase();
-  const needle = findReplaceState.matchCase ? query : query.toLowerCase();
+  const source = editor.value;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const flags = findReplaceState.matchCase ? "g" : "gi";
+  const pattern = new RegExp(escaped, flags);
   const matches: Array<{ start: number; end: number }> = [];
-  let index = 0;
+  let result: RegExpExecArray | null;
 
-  while (index <= source.length - needle.length) {
-    const nextIndex = source.indexOf(needle, index);
+  while ((result = pattern.exec(source)) !== null) {
+    const start = result.index;
+    const end = start + result[0].length;
 
-    if (nextIndex < 0) {
-      break;
-    }
-
-    if (findReplaceState.matchWholeWord && !isWholeWordMatch(source, nextIndex, needle.length)) {
-      index = nextIndex + Math.max(needle.length, 1);
+    if (result[0].length === 0) {
+      pattern.lastIndex = start + 1;
       continue;
     }
 
-    matches.push({ start: nextIndex, end: nextIndex + needle.length });
-    index = nextIndex + Math.max(needle.length, 1);
+    if (findReplaceState.matchWholeWord && !isWholeWordMatch(source, start, result[0].length)) {
+      continue;
+    }
+
+    matches.push({ start, end });
   }
 
   return matches;
@@ -2568,17 +2573,25 @@ async function replaceAllMatches() {
   }
 
   const source = editor.value;
+  const replacement = findReplaceState.replaceText;
   let cursor = 0;
   const chunks: string[] = [];
+  let lastReplacementEnd = 0;
 
   for (const match of matches) {
     chunks.push(source.slice(cursor, match.start));
-    chunks.push(findReplaceState.replaceText);
+    chunks.push(replacement);
+    lastReplacementEnd = chunks.join("").length;
     cursor = match.end;
   }
 
   chunks.push(source.slice(cursor));
-  editor.value = chunks.join("");
+  const nextValue = chunks.join("");
+
+  editor.focus();
+  editor.value = nextValue;
+  const caret = Math.min(lastReplacementEnd, nextValue.length);
+  editor.setSelectionRange(caret, caret);
   syncTextFieldState(editor);
   findReplaceState.activeMatchIndex = -1;
   renderFindPanel();
@@ -2785,7 +2798,6 @@ function refreshAutocomplete(manual: boolean) {
   autocompleteState.interactionMode = "keyboard";
   autocompleteState.activeIndex = Math.min(autocompleteState.activeIndex, items.length - 1);
   updateAutocompletePosition();
-  renderAutocomplete();
 }
 
 function closeAutocomplete() {
@@ -3015,7 +3027,7 @@ function buildMarkdownContinuation(currentLine: string) {
 }
 
 async function setupMenuListener() {
-  await listen<string>("app-menu-action", async (event) => {
+  const unlisten = await listen<string>("app-menu-action", async (event) => {
     switch (event.payload) {
       case "file.new":
         createNewDocument();
@@ -3097,6 +3109,12 @@ async function setupMenuListener() {
         break;
     }
   });
+
+  if ((import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }).hot) {
+    (import.meta as ImportMeta & { hot: { dispose: (cb: () => void) => void } }).hot.dispose(() => {
+      unlisten();
+    });
+  }
 }
 
 function toggleSettingsMenu() {
@@ -3781,8 +3799,25 @@ function formatMessage(template: string, variables: Record<string, string>) {
   }, template);
 }
 
+function setTextByDataAttr<E extends HTMLElement>(
+  elements: E[],
+  datasetKey: string,
+  datasetValue: string,
+  text: string
+) {
+  const target = elements.find((el) => el.dataset[datasetKey] === datasetValue);
+  if (target) {
+    target.textContent = text;
+  }
+}
+
 function escapeAttribute(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;");
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function escapeHtml(value: string) {
@@ -3790,5 +3825,6 @@ function escapeHtml(value: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;");
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }

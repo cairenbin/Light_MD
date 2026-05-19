@@ -1,8 +1,49 @@
 use serde::Serialize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::Emitter;
+
+const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
+
+fn has_allowed_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let lowered = ext.to_ascii_lowercase();
+            ALLOWED_EXTENSIONS.iter().any(|allowed| *allowed == lowered)
+        })
+        .unwrap_or(false)
+}
+
+fn validate_path_for_read(path: &Path) -> Result<(), String> {
+    if !has_allowed_extension(path) {
+        return Err("Unsupported file type".to_string());
+    }
+    let metadata = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if metadata.file_type().is_symlink() {
+        return Err("Symlinks are not allowed".to_string());
+    }
+    if !metadata.is_file() {
+        return Err("Not a regular file".to_string());
+    }
+    Ok(())
+}
+
+fn validate_path_for_write(path: &Path) -> Result<(), String> {
+    if !has_allowed_extension(path) {
+        return Err("Unsupported file type".to_string());
+    }
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() {
+            return Err("Symlinks are not allowed".to_string());
+        }
+        if !metadata.is_file() {
+            return Err("Not a regular file".to_string());
+        }
+    }
+    Ok(())
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -268,6 +309,8 @@ fn open_markdown_file_from_path(path: String) -> Result<Option<MarkdownFile>, St
         return Ok(None);
     }
 
+    validate_path_for_read(&path)?;
+
     read_markdown_file_from_path(path).map(Some)
 }
 
@@ -320,7 +363,11 @@ fn save_markdown_file(
     content: String,
 ) -> Result<Option<SavedMarkdownFile>, String> {
     let path = match path {
-        Some(path) if !path.trim().is_empty() => PathBuf::from(path),
+        Some(path) if !path.trim().is_empty() => {
+            let path_buf = PathBuf::from(path);
+            validate_path_for_write(&path_buf)?;
+            path_buf
+        }
         _ => {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("Markdown", &["md", "markdown", "txt"])

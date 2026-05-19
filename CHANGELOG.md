@@ -41,7 +41,19 @@ All notable changes to this project will be documented in this file.
 - Updated keyboard behavior for find workflow (`Cmd/Ctrl+F`, `Cmd/Ctrl+R`) to support predictable open/close toggling.
 - Expanded localization coverage for newly added editor actions and find/replace UI copy in English, Chinese, and Japanese.
 
+### Security
+
+- Hardened Tauri file IO commands: reject paths whose extensions are not `.md`, `.markdown`, or `.txt`, and refuse symlinks or non-regular files for both read and write.
+- Completed HTML escaping helpers to cover `'` and `>` in attribute and text interpolation.
+
 ### Fixed
+
+- Fixed Find/Replace incorrectly handling Unicode case-folding (e.g. German `ß`, Turkish `İ`) by switching match indexing to operate on the original source via case-insensitive regex.
+- Fixed Replace All not restoring properly on undo by focusing the editor, placing the caret at the end of the last replacement, and capturing a clean history snapshot.
+- Fixed Recent Files reopening a dirty tab silently discarding the user's unsaved edits; the existing tab is now activated without overwriting in-memory content.
+- Fixed settings panel i18n breaking when DOM order changes by selecting elements via `data-settings-group` / `data-settings-field` instead of array indices.
+- Fixed potential focus failure when opening the Find panel by switching to `requestAnimationFrame` after the `hidden` class toggles.
+- Removed redundant autocomplete render in `openAutocomplete` and added HMR cleanup for the Tauri menu event listener to avoid duplicate handlers during dev reloads.
 
 - Resolved split-view scroll feedback issues that could cause the editor and preview panes to jump or auto-scroll back unexpectedly.
 - Improved menu-driven document actions so native desktop commands route through the same editor workflow as toolbar actions.
