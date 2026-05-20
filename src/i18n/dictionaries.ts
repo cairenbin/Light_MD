@@ -90,7 +90,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "drawer.localDraft": "Local draft",
     "autocomplete.title": "Markdown Syntax",
     "dialog.close.title": "Save changes before closing?",
-    "dialog.close.message": "\"{name}\" has unsaved changes. Save before closing?",
+    "dialog.close.message": '"{name}" has unsaved changes. Save before closing?',
     "dialog.cancel": "Cancel",
     "dialog.discard": "Don't Save",
     "dialog.save": "Save",

@@ -82,8 +82,7 @@ export function parseSavedOpenFile(rawFile: unknown): OpenFile | null {
   const id = typeof file.id === "string" && file.id.length > 0 ? file.id : crypto.randomUUID();
   const name = normalizeFileName(typeof file.name === "string" ? file.name : "Untitled.md");
   const content = typeof file.content === "string" ? file.content : "";
-  const nativePath =
-    typeof file.nativePath === "string" && file.nativePath.length > 0 ? file.nativePath : null;
+  const nativePath = typeof file.nativePath === "string" && file.nativePath.length > 0 ? file.nativePath : null;
   const isDirty = typeof file.isDirty === "boolean" ? file.isDirty : content.length > 0;
 
   return {
@@ -116,9 +115,7 @@ export function parseSavedDraftSession(rawSession: string | null): DraftSession 
     }
 
     const activeFileId =
-      typeof parsed.activeFileId === "string" && parsed.activeFileId.length > 0
-        ? parsed.activeFileId
-        : openFiles[0].id;
+      typeof parsed.activeFileId === "string" && parsed.activeFileId.length > 0 ? parsed.activeFileId : openFiles[0].id;
     const hasActiveFile = openFiles.some((file) => file.id === activeFileId);
 
     return {

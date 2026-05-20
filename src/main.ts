@@ -25,14 +25,11 @@ import type {
 } from "./types";
 import {
   AUTOCOMPLETE_SHORTCUT_KEY,
-  DEFAULT_AUTOCOMPLETE_SHORTCUT_ID,
-  DEFAULT_LOCALE,
   DEFAULT_ZOOM_PERCENT,
   DRAFT_KEY,
   DRAFT_SESSION_KEY,
   DRAFT_SESSION_VERSION,
   LOCALE_KEY,
-  MAX_FIND_MATCHES,
   MAX_HISTORY_STACK,
   MAX_RECENT_FILES,
   MAX_ZOOM_PERCENT,
@@ -45,12 +42,7 @@ import {
   ZOOM_STEP,
   starterMarkdown
 } from "./constants";
-import {
-  formatMessage,
-  isSupportedLocale,
-  translate,
-  type TranslationKey
-} from "./i18n/dictionaries";
+import { formatMessage, isSupportedLocale, translate, type TranslationKey } from "./i18n/dictionaries";
 import { buildMarkdownContinuation } from "./editor/continuation";
 import { getFindMatches as getFindMatchesImpl } from "./editor/find";
 import {
@@ -76,7 +68,6 @@ import {
   parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl,
   parseSavedDraftSession,
   parseSavedLocale,
-  parseSavedOpenFile,
   parseSavedRecentFiles,
   parseSavedZoom
 } from "./utils/storage";
@@ -462,8 +453,8 @@ const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY
 const savedLocale = localStorage.getItem(LOCALE_KEY);
 const recentFiles = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
 const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
-const initialActiveFile = initialSession.openFiles.find((file) => file.id === initialSession.activeFileId)
-  ?? initialSession.openFiles[0];
+const initialActiveFile =
+  initialSession.openFiles.find((file) => file.id === initialSession.activeFileId) ?? initialSession.openFiles[0];
 const initialAutocompleteShortcutId = parseSavedAutocompleteShortcutId(savedAutocompleteShortcut);
 const initialLocale = parseSavedLocale(savedLocale);
 
@@ -947,9 +938,7 @@ autocompletePanel.addEventListener("mousedown", (event) => {
 });
 
 autocompleteList.addEventListener("click", (event) => {
-  const target = event.target instanceof HTMLElement
-    ? event.target.closest<HTMLElement>("[data-index]")
-    : null;
+  const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-index]") : null;
 
   if (!target) {
     return;
@@ -965,9 +954,7 @@ autocompleteList.addEventListener("click", (event) => {
 });
 
 autocompleteList.addEventListener("mousemove", (event) => {
-  const target = event.target instanceof HTMLElement
-    ? event.target.closest<HTMLElement>("[data-index]")
-    : null;
+  const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-index]") : null;
 
   if (!target) {
     return;
@@ -1002,9 +989,8 @@ titleInput.addEventListener("input", () => {
 });
 
 app.addEventListener("click", async (event) => {
-  const target = event.target instanceof HTMLElement
-    ? event.target.closest<HTMLElement>("[data-action], [data-mode]")
-    : null;
+  const target =
+    event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-action], [data-mode]") : null;
 
   if (!target) {
     return;
@@ -1449,14 +1435,16 @@ function renderInsertMenu() {
   insertMenu.setAttribute("tabindex", isInsertMenuOpen ? "0" : "-1");
 
   insertMenu.innerHTML = insertMenuItems
-    .map((item, index) => `
+    .map(
+      (item, index) => `
       <button class="insert-menu-item" type="button" tabindex="-1" data-index="${index}" data-action="insert-snippet" data-insert-id="${item.id}">
         <span class="insert-menu-copy">
           <span class="insert-menu-label">${escapeHtml(item.label)}</span>
           <span class="insert-menu-detail">${escapeHtml(item.detail)}</span>
         </span>
       </button>
-    `)
+    `
+    )
     .join("");
 
   updateInsertMenuPosition();
@@ -1519,9 +1507,7 @@ function renderLanguageOptions() {
 }
 
 function renderAutocomplete() {
-  const canShow = autocompleteState.isOpen
-    && autocompleteState.items.length > 0
-    && state.mode !== "preview";
+  const canShow = autocompleteState.isOpen && autocompleteState.items.length > 0 && state.mode !== "preview";
 
   autocompletePanel.classList.toggle("hidden", !canShow);
   autocompletePanel.setAttribute("aria-hidden", String(!canShow));
@@ -1534,9 +1520,10 @@ function renderAutocomplete() {
   autocompleteList.innerHTML = autocompleteState.items
     .map((item, index) => {
       const activeClass = index === autocompleteState.activeIndex ? " active" : "";
-      const pointerSelected = autocompleteState.interactionMode === "pointer" && index === autocompleteState.activeIndex
-        ? " data-pointer-selected=\"true\""
-        : "";
+      const pointerSelected =
+        autocompleteState.interactionMode === "pointer" && index === autocompleteState.activeIndex
+          ? ' data-pointer-selected="true"'
+          : "";
 
       return `
         <li>
@@ -1888,12 +1875,7 @@ async function syncRecentMenu() {
   }
 }
 
-function createOpenFile(
-  name: string,
-  content: string,
-  isDirty: boolean,
-  nativePath: string | null = null
-): OpenFile {
+function createOpenFile(name: string, content: string, isDirty: boolean, nativePath: string | null = null): OpenFile {
   return {
     id: crypto.randomUUID(),
     name,
@@ -2140,10 +2122,7 @@ function updateInsertMenuPosition() {
     preferredTop,
     Math.max(viewportPadding, window.innerHeight - viewportPadding - minUsableHeight)
   );
-  const maxHeight = Math.max(
-    140,
-    Math.min(360, window.innerHeight - clampedTop - viewportPadding)
-  );
+  const maxHeight = Math.max(140, Math.min(360, window.innerHeight - clampedTop - viewportPadding));
 
   insertMenu.style.left = `${Math.round(left)}px`;
   insertMenu.style.top = `${Math.round(clampedTop)}px`;
@@ -2170,7 +2149,7 @@ async function findNext(direction: 1 | -1) {
 
   const selectionStart = editor.selectionStart ?? 0;
   const selectionEnd = editor.selectionEnd ?? selectionStart;
-  let nextIndex = -1;
+  let nextIndex: number;
 
   if (direction > 0) {
     nextIndex = matches.findIndex((match) => match.start > selectionEnd);
@@ -2318,10 +2297,7 @@ function applyInsertMenuItem(insertId: string) {
   closeInsertMenu();
 }
 
-function adjustInsertEditForBlock(
-  context: EditorAutocompleteContext,
-  edit: EditorSelectionEdit
-): EditorSelectionEdit {
+function adjustInsertEditForBlock(context: EditorAutocompleteContext, edit: EditorSelectionEdit): EditorSelectionEdit {
   if (context.currentLine.trim().length === 0) {
     return edit;
   }
@@ -2330,15 +2306,10 @@ function adjustInsertEditForBlock(
   const beforeText = context.value.slice(0, insertionPoint);
   const afterText = context.value.slice(insertionPoint);
   const prefix = beforeText.endsWith("\n") ? "" : "\n";
-  const suffix = afterText.length === 0
-    ? ""
-    : afterText.startsWith("\n\n")
-      ? ""
-      : afterText.startsWith("\n")
-        ? "\n"
-        : "\n\n";
-  const selectionStartOffset = (edit.selectionStart ?? (edit.start + edit.text.length)) - edit.start;
-  const selectionEndOffset = (edit.selectionEnd ?? (edit.start + edit.text.length)) - edit.start;
+  const suffix =
+    afterText.length === 0 ? "" : afterText.startsWith("\n\n") ? "" : afterText.startsWith("\n") ? "\n" : "\n\n";
+  const selectionStartOffset = (edit.selectionStart ?? edit.start + edit.text.length) - edit.start;
+  const selectionEndOffset = (edit.selectionEnd ?? edit.start + edit.text.length) - edit.start;
 
   return {
     start: insertionPoint,
@@ -2411,14 +2382,17 @@ function handleAutocompleteKeyboard(event: KeyboardEvent) {
 }
 
 function isAutocompleteTriggerEvent(event: KeyboardEvent) {
-  const shortcut = getAvailableAutocompleteShortcutOptions().find((option) => option.id === state.autocompleteShortcutId)
-    ?? getAvailableAutocompleteShortcutOptions()[0];
+  const shortcut =
+    getAvailableAutocompleteShortcutOptions().find((option) => option.id === state.autocompleteShortcutId) ??
+    getAvailableAutocompleteShortcutOptions()[0];
 
-  return event.code === shortcut.code
-    && event.shiftKey === shortcut.shift
-    && event.ctrlKey === shortcut.ctrl
-    && event.altKey === shortcut.alt
-    && event.metaKey === shortcut.meta;
+  return (
+    event.code === shortcut.code &&
+    event.shiftKey === shortcut.shift &&
+    event.ctrlKey === shortcut.ctrl &&
+    event.altKey === shortcut.alt &&
+    event.metaKey === shortcut.meta
+  );
 }
 
 function handleMarkdownContinuation(event: KeyboardEvent) {
@@ -2593,10 +2567,7 @@ function updateAutocompletePosition() {
   const viewportPadding = 16;
 
   autocompleteState.anchorTop = Math.min(top + 18, window.innerHeight - panelHeight - viewportPadding);
-  autocompleteState.anchorLeft = Math.min(
-    left,
-    Math.max(viewportPadding, editorRect.right - panelWidth - 12)
-  );
+  autocompleteState.anchorLeft = Math.min(left, Math.max(viewportPadding, editorRect.right - panelWidth - 12));
 
   renderAutocomplete();
 }
@@ -2788,9 +2759,11 @@ function focusSettingsControl(focusLast = false) {
 }
 
 function getSettingsControls() {
-  return Array.from(settingsMenu.querySelectorAll<HTMLElement>(
-    "button.settings-option-button, button.font-button, select.settings-shortcut-select"
-  ));
+  return Array.from(
+    settingsMenu.querySelectorAll<HTMLElement>(
+      "button.settings-option-button, button.font-button, select.settings-shortcut-select"
+    )
+  );
 }
 
 function setAutocompleteShortcut(nextId: string) {
@@ -2816,9 +2789,7 @@ function setLocale(nextLocale: string) {
   render();
 }
 
-async function performEditorAction(
-  action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll"
-) {
+async function performEditorAction(action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll") {
   const activeElement = document.activeElement;
   const target = isTextField(activeElement) ? activeElement : editor;
 
@@ -2887,9 +2858,9 @@ function captureEditorHistorySnapshot() {
   const nextSnapshot = readEditorHistorySnapshot();
 
   if (
-    nextSnapshot.value === currentHistorySnapshot.value
-    && nextSnapshot.selectionStart === currentHistorySnapshot.selectionStart
-    && nextSnapshot.selectionEnd === currentHistorySnapshot.selectionEnd
+    nextSnapshot.value === currentHistorySnapshot.value &&
+    nextSnapshot.selectionStart === currentHistorySnapshot.selectionStart &&
+    nextSnapshot.selectionEnd === currentHistorySnapshot.selectionEnd
   ) {
     return;
   }
@@ -2908,7 +2879,7 @@ function readEditorHistorySnapshot(): EditorHistorySnapshot {
   return {
     value: editor.value,
     selectionStart: editor.selectionStart ?? 0,
-    selectionEnd: editor.selectionEnd ?? (editor.selectionStart ?? 0)
+    selectionEnd: editor.selectionEnd ?? editor.selectionStart ?? 0
   };
 }
 
@@ -3094,9 +3065,9 @@ function pickInsertMenuItem(id: string): InsertMenuItem {
 
 function buildShortcutMarkup() {
   const isMac = isMacPlatform();
-  const autocompleteShortcut = getAvailableAutocompleteShortcutOptions().find(
-    (option) => option.id === state.autocompleteShortcutId
-  ) ?? getAvailableAutocompleteShortcutOptions()[0];
+  const autocompleteShortcut =
+    getAvailableAutocompleteShortcutOptions().find((option) => option.id === state.autocompleteShortcutId) ??
+    getAvailableAutocompleteShortcutOptions()[0];
   const autocompleteShortcutMarkup = toShortcutKbdMarkup(getShortcutOptionLabel(autocompleteShortcut));
 
   if (isMac) {

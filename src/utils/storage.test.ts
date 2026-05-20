@@ -19,7 +19,15 @@ import {
 
 const fakeOptions: AutocompleteShortcutOption[] = [
   { id: "shift-space", code: "Space", shift: true, ctrl: false, alt: false, meta: false, label: "Shift + Space" },
-  { id: DEFAULT_AUTOCOMPLETE_SHORTCUT_ID, code: "Space", shift: false, ctrl: true, alt: false, meta: false, label: "Ctrl + Space" }
+  {
+    id: DEFAULT_AUTOCOMPLETE_SHORTCUT_ID,
+    code: "Space",
+    shift: false,
+    ctrl: true,
+    alt: false,
+    meta: false,
+    label: "Ctrl + Space"
+  }
 ];
 
 describe("clampZoom", () => {

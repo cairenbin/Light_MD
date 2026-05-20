@@ -3,9 +3,7 @@ import { escapeAttribute, escapeHtml } from "./html";
 
 describe("escapeHtml", () => {
   it("escapes the five XSS-sensitive characters", () => {
-    expect(escapeHtml(`<script>alert("xss")</script>`)).toBe(
-      "&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;"
-    );
+    expect(escapeHtml(`<script>alert("xss")</script>`)).toBe("&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;");
   });
 
   it("escapes ampersands first to avoid double escaping", () => {
