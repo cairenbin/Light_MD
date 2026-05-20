@@ -51,6 +51,18 @@ import {
   translate,
   type TranslationKey
 } from "./i18n/dictionaries";
+import { escapeAttribute, escapeHtml } from "./utils/html";
+import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
+import { isMacPlatform } from "./utils/platform";
+import {
+  clampZoom,
+  parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl,
+  parseSavedDraftSession,
+  parseSavedLocale,
+  parseSavedOpenFile,
+  parseSavedRecentFiles,
+  parseSavedZoom
+} from "./utils/storage";
 
 marked.use({
   gfm: true,
@@ -3076,71 +3088,6 @@ function buildInitialDraftSession(
   };
 }
 
-function parseSavedDraftSession(rawSession: string | null): DraftSession | null {
-  if (!rawSession) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawSession) as {
-      activeFileId?: unknown;
-      openFiles?: unknown;
-      version?: unknown;
-    };
-    const openFilesSource = Array.isArray(parsed.openFiles) ? parsed.openFiles : [];
-    const openFiles = openFilesSource
-      .map((file) => parseSavedOpenFile(file))
-      .filter((file): file is OpenFile => file !== null);
-
-    if (openFiles.length === 0) {
-      return null;
-    }
-
-    const activeFileId = typeof parsed.activeFileId === "string" && parsed.activeFileId.length > 0
-      ? parsed.activeFileId
-      : openFiles[0].id;
-    const hasActiveFile = openFiles.some((file) => file.id === activeFileId);
-
-    return {
-      version: typeof parsed.version === "number" ? parsed.version : DRAFT_SESSION_VERSION,
-      activeFileId: hasActiveFile ? activeFileId : openFiles[0].id,
-      openFiles
-    };
-  } catch (error) {
-    console.error("Could not parse saved draft session.", error);
-    return null;
-  }
-}
-
-function parseSavedOpenFile(rawFile: unknown): OpenFile | null {
-  if (!rawFile || typeof rawFile !== "object") {
-    return null;
-  }
-
-  const file = rawFile as {
-    id?: unknown;
-    name?: unknown;
-    content?: unknown;
-    nativePath?: unknown;
-    isDirty?: unknown;
-  };
-  const id = typeof file.id === "string" && file.id.length > 0 ? file.id : crypto.randomUUID();
-  const name = normalizeFileName(typeof file.name === "string" ? file.name : "Untitled.md");
-  const content = typeof file.content === "string" ? file.content : "";
-  const nativePath = typeof file.nativePath === "string" && file.nativePath.length > 0
-    ? file.nativePath
-    : null;
-  const isDirty = typeof file.isDirty === "boolean" ? file.isDirty : content.length > 0;
-
-  return {
-    id,
-    name,
-    content,
-    nativePath,
-    isDirty
-  };
-}
-
 function scheduleScrollSync(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
   if (pendingScrollSyncFrame !== 0) {
     cancelAnimationFrame(pendingScrollSyncFrame);
@@ -3193,79 +3140,13 @@ function syncActiveScroll() {
   syncScroll(editor, preview, "editor");
 }
 
-function normalizeFileName(fileName: string) {
-  const trimmed = fileName.trim();
-
-  if (!trimmed) {
-    return "Untitled.md";
-  }
-
-  return /\.(md|markdown|txt)$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
-}
-
-function clampZoom(zoomPercent: number) {
-  return Math.min(MAX_ZOOM_PERCENT, Math.max(MIN_ZOOM_PERCENT, Math.round(zoomPercent)));
-}
-
-function parseSavedZoom(value: string | null) {
-  if (!value) {
-    return DEFAULT_ZOOM_PERCENT;
-  }
-
-  const zoomPercent = Number(value);
-  return Number.isFinite(zoomPercent) ? clampZoom(zoomPercent) : DEFAULT_ZOOM_PERCENT;
-}
-
-function parseSavedAutocompleteShortcutId(value: string | null) {
-  const availableOptions = getAvailableAutocompleteShortcutOptions();
-  const defaultOption = availableOptions.find((option) => option.id === DEFAULT_AUTOCOMPLETE_SHORTCUT_ID)
-    ?? availableOptions[0];
-
-  if (!value) {
-    return defaultOption.id;
-  }
-
-  return availableOptions.some((option) => option.id === value)
-    ? value
-    : defaultOption.id;
-}
-
-function parseSavedRecentFiles(value: string | null) {
-  if (!value) {
-    return [] as string[];
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-
-    if (!Array.isArray(parsed)) {
-      return [] as string[];
-    }
-
-    return parsed
-      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-      .slice(0, MAX_RECENT_FILES);
-  } catch (error) {
-    console.error("Could not parse recent files.", error);
-    return [] as string[];
-  }
-}
-
-function parseSavedLocale(value: string | null): Locale {
-  if (isSupportedLocale(value)) {
-    return value;
-  }
-
-  return DEFAULT_LOCALE;
+function parseSavedAutocompleteShortcutId(value: string | null): string {
+  return parseSavedAutocompleteShortcutIdImpl(value, getAvailableAutocompleteShortcutOptions());
 }
 
 function getAvailableAutocompleteShortcutOptions() {
   const platform: "mac" | "other" = isMacPlatform() ? "mac" : "other";
   return autocompleteShortcutOptions.filter((option) => !option.platforms || option.platforms.includes(platform));
-}
-
-function isMacPlatform() {
-  return navigator.userAgent.toLowerCase().includes("mac");
 }
 
 function buildHeadingEdit(context: EditorAutocompleteContext, level: number) {
@@ -3423,25 +3304,6 @@ function pickInsertMenuItem(id: string): InsertMenuItem {
   };
 }
 
-function documentInitial(name: string) {
-  const trimmed = name.trim();
-  const firstCharacter = trimmed.charAt(0).toUpperCase();
-
-  return firstCharacter || "•";
-}
-
-function formatPathForDisplay(path: string) {
-  const normalized = path.replaceAll("\\", "/");
-
-  if (normalized.length <= 54) {
-    return normalized;
-  }
-
-  const head = normalized.slice(0, 24);
-  const tail = normalized.slice(-22);
-  return `${head} ... ${tail}`;
-}
-
 function buildShortcutMarkup() {
   const isMac = isMacPlatform();
   const autocompleteShortcut = getAvailableAutocompleteShortcutOptions().find(
@@ -3500,24 +3362,6 @@ function setTextByDataAttr<E extends HTMLElement>(
   if (target) {
     target.textContent = text;
   }
-}
-
-function escapeAttribute(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 if (import.meta.hot) {
