@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "build": "tsc && vite build",
-    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml"
+    "check": "npm run build && npm run test && cargo check --manifest-path src-tauri/Cargo.toml",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
@@ -19,7 +22,9 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",
+    "@vitest/coverage-v8": "^4.1.7",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.1.7"
   }
 }
