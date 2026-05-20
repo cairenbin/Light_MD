@@ -51,6 +51,23 @@ import {
   translate,
   type TranslationKey
 } from "./i18n/dictionaries";
+import { buildMarkdownContinuation } from "./editor/continuation";
+import { getFindMatches as getFindMatchesImpl } from "./editor/find";
+import {
+  buildAlignedTableEdit,
+  buildCodeFenceEdit,
+  buildDetailsEdit,
+  buildFootnoteDefinitionEdit,
+  buildFootnoteReferenceEdit,
+  buildHeadingEdit,
+  buildHtmlCommentEdit,
+  buildLineSnippetEdit,
+  buildLinkEdit,
+  buildMathBlockEdit,
+  buildReferenceLinkEdit,
+  buildTableEdit,
+  buildWrappedEdit
+} from "./editor/snippets";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
@@ -2135,56 +2152,11 @@ function updateInsertMenuPosition() {
 }
 
 function getFindMatches() {
-  const query = findReplaceState.query;
-
-  if (!query) {
-    return [] as Array<{ start: number; end: number }>;
-  }
-
-  const source = editor.value;
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const flags = findReplaceState.matchCase ? "g" : "gi";
-  const pattern = new RegExp(escaped, flags);
-  const matches: Array<{ start: number; end: number }> = [];
-  let result: RegExpExecArray | null;
-
-  while ((result = pattern.exec(source)) !== null) {
-    const start = result.index;
-    const end = start + result[0].length;
-
-    if (result[0].length === 0) {
-      pattern.lastIndex = start + 1;
-      continue;
-    }
-
-    if (findReplaceState.matchWholeWord && !isWholeWordMatch(source, start, result[0].length)) {
-      continue;
-    }
-
-    matches.push({ start, end });
-
-    if (matches.length >= MAX_FIND_MATCHES) {
-      break;
-    }
-  }
-
-  return matches;
-}
-
-function isWholeWordMatch(source: string, start: number, length: number) {
-  const before = start > 0 ? source[start - 1] : "";
-  const after = start + length < source.length ? source[start + length] : "";
-  const wordPattern = /[\p{L}\p{N}_]/u;
-
-  if (before && wordPattern.test(before)) {
-    return false;
-  }
-
-  if (after && wordPattern.test(after)) {
-    return false;
-  }
-
-  return true;
+  return getFindMatchesImpl(editor.value, {
+    query: findReplaceState.query,
+    matchCase: findReplaceState.matchCase,
+    matchWholeWord: findReplaceState.matchWholeWord
+  });
 }
 
 async function findNext(direction: 1 | -1) {
@@ -2680,50 +2652,6 @@ function getEditorCaretPosition() {
   return { top, left };
 }
 
-function buildMarkdownContinuation(currentLine: string) {
-  const taskMatch = currentLine.match(/^(\s*)[-*+]\s\[( |x|X)\]\s?(.*)$/);
-
-  if (taskMatch) {
-    if (taskMatch[3].trim().length === 0) {
-      return "";
-    }
-
-    return `${taskMatch[1]}- [ ] `;
-  }
-
-  const bulletMatch = currentLine.match(/^(\s*)([-*+])\s+(.*)$/);
-
-  if (bulletMatch) {
-    if (bulletMatch[3].trim().length === 0) {
-      return "";
-    }
-
-    return `${bulletMatch[1]}${bulletMatch[2]} `;
-  }
-
-  const orderedMatch = currentLine.match(/^(\s*)(\d+)\.\s+(.*)$/);
-
-  if (orderedMatch) {
-    if (orderedMatch[3].trim().length === 0) {
-      return "";
-    }
-
-    return `${orderedMatch[1]}${Number(orderedMatch[2]) + 1}. `;
-  }
-
-  const quoteMatch = currentLine.match(/^(\s*)>\s?(.*)$/);
-
-  if (quoteMatch) {
-    if (quoteMatch[2].trim().length === 0) {
-      return "";
-    }
-
-    return `${quoteMatch[1]}> `;
-  }
-
-  return null;
-}
-
 async function setupMenuListener() {
   const unlisten = await listen<string>("app-menu-action", async (event) => {
     switch (event.payload) {
@@ -3147,146 +3075,6 @@ function parseSavedAutocompleteShortcutId(value: string | null): string {
 function getAvailableAutocompleteShortcutOptions() {
   const platform: "mac" | "other" = isMacPlatform() ? "mac" : "other";
   return autocompleteShortcutOptions.filter((option) => !option.platforms || option.platforms.includes(platform));
-}
-
-function buildHeadingEdit(context: EditorAutocompleteContext, level: number) {
-  const marker = "#".repeat(level);
-  const label = context.selectedText || `Heading ${level}`;
-
-  if (/^\s*#{1,6}\s*$/.test(context.currentLine)) {
-    return buildLineReplacementEdit(context, `${marker} ${label}`, marker.length + 1, marker.length + 1 + label.length);
-  }
-
-  return buildInsertionEdit(context, `${marker} ${label}`, marker.length + 1, marker.length + 1 + label.length);
-}
-
-function buildLineSnippetEdit(
-  context: EditorAutocompleteContext,
-  text: string,
-  triggerPattern: RegExp
-) {
-  const placeholderStart = text.indexOf(" ") + 1;
-
-  if (triggerPattern.test(context.currentLine)) {
-    return buildLineReplacementEdit(context, text, placeholderStart, text.length);
-  }
-
-  return buildInsertionEdit(context, text, placeholderStart, text.length);
-}
-
-function buildCodeFenceEdit(context: EditorAutocompleteContext, language = "md") {
-  const body = context.selectedText || "code";
-  const opener = `\`\`\`${language}`;
-  const text = `${opener}\n${body}\n\`\`\``;
-  const start = `${opener}\n`.length;
-
-  if (/^\s*(```|~~~)\s*\w*\s*$/.test(context.currentLine)) {
-    return buildLineReplacementEdit(context, text, start, start + body.length);
-  }
-
-  return buildInsertionEdit(context, text, start, start + body.length);
-}
-
-function buildLinkEdit(context: EditorAutocompleteContext, image: boolean) {
-  const label = context.selectedText || (image ? "alt text" : "link text");
-  const url = image ? "https://example.com/image.png" : "https://example.com";
-  const text = `${image ? "!" : ""}[${label}](${url})`;
-  const urlStart = `${image ? "!" : ""}[${label}](`.length;
-
-  return buildInsertionEdit(context, text, urlStart, urlStart + url.length);
-}
-
-function buildReferenceLinkEdit(context: EditorAutocompleteContext) {
-  const label = context.selectedText || "reference text";
-  const refId = "ref-1";
-  const text = `[${label}][${refId}]\n\n[${refId}]: https://example.com`;
-  const urlStart = `[${label}][${refId}]\n\n[${refId}]: `.length;
-
-  return buildInsertionEdit(context, text, urlStart, urlStart + "https://example.com".length);
-}
-
-function buildFootnoteReferenceEdit(context: EditorAutocompleteContext) {
-  const text = "[^1]";
-  return buildInsertionEdit(context, text, 2, 3);
-}
-
-function buildFootnoteDefinitionEdit(context: EditorAutocompleteContext) {
-  const text = "[^1]: Footnote text";
-  return buildInsertionEdit(context, text, 6, text.length);
-}
-
-function buildTableEdit(context: EditorAutocompleteContext) {
-  const text = "| Column | Column |\n| --- | --- |\n| Value | Value |";
-  return buildInsertionEdit(context, text, 2, 8);
-}
-
-function buildAlignedTableEdit(context: EditorAutocompleteContext) {
-  const text = "| Left | Center | Right |\n| :--- | :---: | ---: |\n| Value | Value | Value |";
-  return buildInsertionEdit(context, text, 2, 6);
-}
-
-function buildWrappedEdit(
-  context: EditorAutocompleteContext,
-  prefix: string,
-  suffix: string,
-  placeholder: string
-) {
-  const content = context.selectedText || placeholder;
-  const text = `${prefix}${content}${suffix}`;
-  const contentStart = prefix.length;
-  const contentEnd = prefix.length + content.length;
-
-  return buildInsertionEdit(context, text, contentStart, contentEnd);
-}
-
-function buildMathBlockEdit(context: EditorAutocompleteContext) {
-  const body = context.selectedText || "E = mc^2";
-  const text = `$$\n${body}\n$$`;
-  return buildInsertionEdit(context, text, 3, 3 + body.length);
-}
-
-function buildDetailsEdit(context: EditorAutocompleteContext) {
-  const body = context.selectedText || "Hidden details";
-  const text = `<details>\n<summary>Summary</summary>\n\n${body}\n</details>`;
-  const summaryStart = "<details>\n<summary>".length;
-  const summaryEnd = summaryStart + "Summary".length;
-
-  return buildInsertionEdit(context, text, summaryStart, summaryEnd);
-}
-
-function buildHtmlCommentEdit(context: EditorAutocompleteContext) {
-  const text = "<!-- comment -->";
-  return buildInsertionEdit(context, text, 5, 12);
-}
-
-function buildInsertionEdit(
-  context: EditorAutocompleteContext,
-  text: string,
-  selectionOffsetStart = text.length,
-  selectionOffsetEnd = selectionOffsetStart
-): EditorSelectionEdit {
-  return {
-    start: context.selectionStart,
-    end: context.selectionEnd,
-    text,
-    selectionStart: context.selectionStart + selectionOffsetStart,
-    selectionEnd: context.selectionStart + selectionOffsetEnd
-  };
-}
-
-function buildLineReplacementEdit(
-  context: EditorAutocompleteContext,
-  text: string,
-  selectionOffsetStart = text.length,
-  selectionOffsetEnd = selectionOffsetStart
-): EditorSelectionEdit {
-  return {
-    start: context.lineStart,
-    end: context.lineEnd,
-    text,
-    selectionStart: context.lineStart + selectionOffsetStart,
-    selectionEnd: context.lineStart + selectionOffsetEnd
-  };
 }
 
 function pickInsertMenuItem(id: string): InsertMenuItem {
