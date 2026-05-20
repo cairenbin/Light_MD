@@ -1016,9 +1016,17 @@ const findReplaceAllButton = requireElement<HTMLButtonElement>("[data-action='fi
 
 let activeScrollSource: "editor" | "preview" = "editor";
 let programmaticScrollSource: "editor" | "preview" | null = null;
+let pendingScrollSyncFrame = 0;
+
+const globalEventListeners: Array<{
+  target: Window | Document;
+  type: string;
+  listener: EventListener;
+}> = [];
 let pendingCloseRequest: PendingCloseRequest | null = null;
 let isInsertMenuOpen = false;
 let isSettingsMenuOpen = false;
+const MAX_HISTORY_STACK = 500;
 const undoHistoryStack: EditorHistorySnapshot[] = [];
 const redoHistoryStack: EditorHistorySnapshot[] = [];
 let isApplyingHistoryChange = false;
@@ -1053,10 +1061,12 @@ void syncRecentMenu();
 render();
 persistDraft();
 
-window.addEventListener("resize", () => {
+const resizeListener = () => {
   updateInsertMenuPosition();
   updateAutocompletePosition();
-});
+};
+window.addEventListener("resize", resizeListener);
+globalEventListeners.push({ target: window, type: "resize", listener: resizeListener });
 
 insertMenuButton.addEventListener("keydown", (event) => {
   if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
@@ -1201,10 +1211,11 @@ editor.addEventListener("input", () => {
 
 editor.addEventListener("scroll", () => {
   if (programmaticScrollSource === "editor" || state.mode !== "split") {
+    updateAutocompletePosition();
     return;
   }
 
-  syncScroll(editor, preview, "editor");
+  scheduleScrollSync(editor, preview, "editor");
   updateAutocompletePosition();
 });
 
@@ -1213,7 +1224,7 @@ preview.addEventListener("scroll", () => {
     return;
   }
 
-  syncScroll(preview, editor, "preview");
+  scheduleScrollSync(preview, editor, "preview");
 });
 
 editor.addEventListener("keydown", (event) => {
@@ -1448,7 +1459,10 @@ app.addEventListener("click", async (event) => {
   }
 });
 
-document.addEventListener("keydown", async (event) => {
+const documentKeydownListener: EventListener = async (event) => {
+  if (!(event instanceof KeyboardEvent)) {
+    return;
+  }
   if (event.key === "Escape" && isSettingsMenuOpen) {
     event.preventDefault();
     closeSettingsMenu(true);
@@ -1535,7 +1549,9 @@ document.addEventListener("keydown", async (event) => {
     }
     return;
   }
-});
+};
+document.addEventListener("keydown", documentKeydownListener);
+globalEventListeners.push({ target: document, type: "keydown", listener: documentKeydownListener });
 
 dialogBackdrop.addEventListener("click", (event) => {
   if (event.target === dialogBackdrop) {
@@ -1543,7 +1559,10 @@ dialogBackdrop.addEventListener("click", (event) => {
   }
 });
 
-document.addEventListener("click", (event) => {
+const documentClickListener: EventListener = (event) => {
+  if (!(event instanceof MouseEvent)) {
+    return;
+  }
   const target = event.target instanceof HTMLElement ? event.target : null;
 
   if (isInsertMenuOpen && !target?.closest(".toolbar-menu-shell")) {
@@ -1553,7 +1572,10 @@ document.addEventListener("click", (event) => {
   if (isSettingsMenuOpen && !target?.closest(".settings-shell")) {
     closeSettingsMenu();
   }
-});
+};
+
+document.addEventListener("click", documentClickListener);
+globalEventListeners.push({ target: document, type: "click", listener: documentClickListener });
 
 function render() {
   renderLocale();
@@ -2440,6 +2462,8 @@ function updateInsertMenuPosition() {
   insertMenu.style.maxHeight = `${Math.round(maxHeight)}px`;
 }
 
+const MAX_FIND_MATCHES = 10000;
+
 function getFindMatches() {
   const query = findReplaceState.query;
 
@@ -2468,6 +2492,10 @@ function getFindMatches() {
     }
 
     matches.push({ start, end });
+
+    if (matches.length >= MAX_FIND_MATCHES) {
+      break;
+    }
   }
 
   return matches;
@@ -3110,8 +3138,8 @@ async function setupMenuListener() {
     }
   });
 
-  if ((import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }).hot) {
-    (import.meta as ImportMeta & { hot: { dispose: (cb: () => void) => void } }).hot.dispose(() => {
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
       unlisten();
     });
   }
@@ -3233,7 +3261,6 @@ async function performEditorAction(
     }
   }
 
-  document.execCommand(action);
   syncTextFieldState(target);
 }
 
@@ -3271,7 +3298,7 @@ function captureEditorHistorySnapshot() {
 
   undoHistoryStack.push(currentHistorySnapshot);
 
-  if (undoHistoryStack.length > 500) {
+  if (undoHistoryStack.length > MAX_HISTORY_STACK) {
     undoHistoryStack.shift();
   }
 
@@ -3315,6 +3342,11 @@ function undoEditorHistory() {
   }
 
   redoHistoryStack.push(readEditorHistorySnapshot());
+
+  if (redoHistoryStack.length > MAX_HISTORY_STACK) {
+    redoHistoryStack.shift();
+  }
+
   applyEditorHistorySnapshot(previousSnapshot);
   return true;
 }
@@ -3331,6 +3363,11 @@ function redoEditorHistory() {
   }
 
   undoHistoryStack.push(readEditorHistorySnapshot());
+
+  if (undoHistoryStack.length > MAX_HISTORY_STACK) {
+    undoHistoryStack.shift();
+  }
+
   applyEditorHistorySnapshot(nextSnapshot);
   return true;
 }
@@ -3444,6 +3481,17 @@ function parseSavedOpenFile(rawFile: unknown): OpenFile | null {
     nativePath,
     isDirty
   };
+}
+
+function scheduleScrollSync(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
+  if (pendingScrollSyncFrame !== 0) {
+    cancelAnimationFrame(pendingScrollSyncFrame);
+  }
+
+  pendingScrollSyncFrame = requestAnimationFrame(() => {
+    pendingScrollSyncFrame = 0;
+    syncScroll(source, target, sourceName);
+  });
 }
 
 function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
@@ -3827,4 +3875,12 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    globalEventListeners.forEach(({ target, type, listener }) => {
+      target.removeEventListener(type, listener as EventListener);
+    });
+  });
 }

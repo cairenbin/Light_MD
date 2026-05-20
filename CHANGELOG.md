@@ -55,6 +55,11 @@ All notable changes to this project will be documented in this file.
 - Fixed settings panel i18n breaking when DOM order changes by selecting elements via `data-settings-group` / `data-settings-field` instead of array indices.
 - Fixed potential focus failure when opening the Find panel by switching to `requestAnimationFrame` after the `hidden` class toggles.
 - Removed redundant autocomplete render in `openAutocomplete` and added HMR cleanup for the Tauri menu event listener to avoid duplicate handlers during dev reloads.
+- Throttled split-view scroll synchronization with `requestAnimationFrame` to avoid race conditions and excessive layout work under fast scrolling.
+- Capped Find match count at 10000 entries to prevent ReDoS-style stalls when scanning very large documents.
+- Capped both undo and redo history stacks at 500 entries to bound memory usage during long editing sessions.
+- Hardened HMR cleanup so window/document listeners (resize, keydown, click) are removed on hot reload to prevent duplicate handlers.
+- Removed deprecated `document.execCommand` fallback from the editor action handler; native undo/redo and clipboard paths now drive all editor commands.
 
 - Resolved split-view scroll feedback issues that could cause the editor and preview panes to jump or auto-scroll back unexpectedly.
 - Improved menu-driven document actions so native desktop commands route through the same editor workflow as toolbar actions.
