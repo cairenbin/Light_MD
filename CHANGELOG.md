@@ -43,6 +43,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 
+- Enabled a strict Content Security Policy in `tauri.conf.json` (`default-src 'self'`, no remote scripts, `object-src 'none'`, `frame-ancestors 'none'`) to harden the renderer against XSS and resource loading attacks.
 - Hardened Tauri file IO commands: reject paths whose extensions are not `.md`, `.markdown`, or `.txt`, and refuse symlinks or non-regular files for both read and write.
 - Completed HTML escaping helpers to cover `'` and `>` in attribute and text interpolation.
 
