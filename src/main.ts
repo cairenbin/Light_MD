@@ -28,7 +28,6 @@ import {
 } from "./constants";
 import { formatMessage, isSupportedLocale, translate, type TranslationKey } from "./i18n/dictionaries";
 import { buildMarkdownContinuation } from "./editor/continuation";
-import { getFindMatches as getFindMatchesImpl } from "./editor/find";
 import {
   buildAlignedTableEdit,
   buildCodeFenceEdit,
@@ -63,11 +62,11 @@ import {
   removeRecentFile,
   syncRecentMenu
 } from "./storage/session";
+import { createFindController } from "./ui/find";
 import {
   activeScrollSource,
   autocompleteState,
   currentHistorySnapshot,
-  findReplaceState,
   globalEventListeners,
   isApplyingHistoryChange,
   isInsertMenuOpen,
@@ -105,17 +104,6 @@ import {
   drawerSectionTitle,
   editor,
   fileActionButtons,
-  findCloseButton,
-  findInput,
-  findMatchCaseButton,
-  findMatchWordButton,
-  findNextButton,
-  findPanel,
-  findPrevButton,
-  findReplaceAllButton,
-  findReplaceButton,
-  findStatus,
-  findToggleReplaceButton,
   fontDecreaseButton,
   fontIncreaseButton,
   fontSizeLabel,
@@ -128,8 +116,6 @@ import {
   mainArea,
   modeButtons,
   preview,
-  replaceInput,
-  replaceRow,
   saveState,
   settingsFieldLabels,
   settingsGroupTitles,
@@ -680,6 +666,15 @@ app.innerHTML = `
 
 initDom(app);
 
+const findController = createFindController({
+  applyEditorEdit,
+  syncTextFieldState,
+  closeInsertMenu,
+  closeSettingsMenu,
+  closeAutocomplete
+});
+findController.bindListeners();
+
 editor.value = state.content;
 resetEditorHistory();
 void setupMenuListener();
@@ -775,54 +770,6 @@ shortcutSelect.addEventListener("change", () => {
 
 languageSelect.addEventListener("change", () => {
   setLocale(languageSelect.value);
-});
-
-findInput.addEventListener("input", () => {
-  findReplaceState.query = findInput.value;
-  findReplaceState.activeMatchIndex = -1;
-  renderFindPanel();
-});
-
-replaceInput.addEventListener("input", () => {
-  findReplaceState.replaceText = replaceInput.value;
-});
-
-findMatchCaseButton.addEventListener("click", () => {
-  findReplaceState.matchCase = !findReplaceState.matchCase;
-  findReplaceState.activeMatchIndex = -1;
-  renderFindPanel();
-});
-
-findMatchWordButton.addEventListener("click", () => {
-  findReplaceState.matchWholeWord = !findReplaceState.matchWholeWord;
-  findReplaceState.activeMatchIndex = -1;
-  renderFindPanel();
-});
-
-findInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    void findNext(event.shiftKey ? -1 : 1);
-    return;
-  }
-
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeFindPanel(true);
-  }
-});
-
-replaceInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    void replaceCurrentMatch();
-    return;
-  }
-
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeFindPanel(true);
-  }
 });
 
 editor.addEventListener("input", () => {
@@ -1050,33 +997,8 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
-  if (action === "find-prev") {
-    await findNext(-1);
+  if (action && (await findController.handleAction(action))) {
     return;
-  }
-
-  if (action === "find-next") {
-    await findNext(1);
-    return;
-  }
-
-  if (action === "find-close") {
-    closeFindPanel(true);
-    return;
-  }
-
-  if (action === "find-toggle-replace") {
-    toggleFindReplaceMode();
-    return;
-  }
-
-  if (action === "find-replace") {
-    await replaceCurrentMatch();
-    return;
-  }
-
-  if (action === "find-replace-all") {
-    await replaceAllMatches();
   }
 });
 
@@ -1102,9 +1024,9 @@ const documentKeydownListener: EventListener = async (event) => {
     return;
   }
 
-  if (event.key === "Escape" && findReplaceState.isOpen) {
+  if (event.key === "Escape" && findController.isOpen()) {
     event.preventDefault();
-    closeFindPanel(true);
+    findController.closeFind(true);
     return;
   }
 
@@ -1143,30 +1065,30 @@ const documentKeydownListener: EventListener = async (event) => {
 
   if (event.key.toLowerCase() === "f") {
     event.preventDefault();
-    if (findReplaceState.isOpen && !findReplaceState.showReplace) {
-      closeFindPanel(true);
+    if (findController.isOpen() && !findController.showReplace()) {
+      findController.closeFind(true);
     } else {
-      openFindPanel(false);
+      findController.openFind(false);
     }
     return;
   }
 
   if (event.key.toLowerCase() === "h") {
     event.preventDefault();
-    if (findReplaceState.isOpen && findReplaceState.showReplace) {
-      closeFindPanel(true);
+    if (findController.isOpen() && findController.showReplace()) {
+      findController.closeFind(true);
     } else {
-      openFindPanel(true);
+      findController.openFind(true);
     }
     return;
   }
 
   if (event.key.toLowerCase() === "r") {
     event.preventDefault();
-    if (findReplaceState.isOpen && findReplaceState.showReplace) {
-      closeFindPanel(true);
+    if (findController.isOpen() && findController.showReplace()) {
+      findController.closeFind(true);
     } else {
-      openFindPanel(true);
+      findController.openFind(true);
     }
     return;
   }
@@ -1206,7 +1128,7 @@ function render() {
   renderTheme();
   renderZoom();
   renderDocuments();
-  renderFindPanel();
+  findController.renderPanel();
   renderInsertMenu();
   renderSettingsMenu();
   renderShortcuts();
@@ -1288,19 +1210,6 @@ function renderLocale() {
   confirmCloseCancelButton.textContent = t("dialog.cancel");
   confirmCloseDiscardButton.textContent = t("dialog.discard");
   confirmCloseSaveButton.textContent = t("dialog.save");
-
-  findInput.placeholder = t("find.placeholder");
-  replaceInput.placeholder = t("find.replace.placeholder");
-  findPrevButton.textContent = t("find.previous");
-  findNextButton.textContent = t("find.next");
-  findCloseButton.textContent = t("find.close");
-  findToggleReplaceButton.textContent = findReplaceState.showReplace
-    ? t("find.toggleReplace.close")
-    : t("find.toggleReplace.open");
-  findReplaceButton.textContent = t("find.replace");
-  findReplaceAllButton.textContent = t("find.replaceAll");
-  findMatchCaseButton.title = t("find.matchCase");
-  findMatchWordButton.title = t("find.matchWholeWord");
 }
 
 function renderMode() {
@@ -1477,75 +1386,6 @@ function renderAutocomplete() {
   autocompletePanel.style.top = `${autocompleteState.anchorTop}px`;
   autocompletePanel.style.left = `${autocompleteState.anchorLeft}px`;
   ensureAutocompleteItemVisible();
-}
-
-function renderFindPanel() {
-  findPanel.classList.toggle("hidden", !findReplaceState.isOpen);
-  findPanel.setAttribute("aria-hidden", String(!findReplaceState.isOpen));
-  replaceRow.classList.toggle("hidden", !findReplaceState.showReplace);
-  findToggleReplaceButton.textContent = findReplaceState.showReplace
-    ? t("find.toggleReplace.close")
-    : t("find.toggleReplace.open");
-  findToggleReplaceButton.setAttribute("aria-pressed", String(findReplaceState.showReplace));
-  findToggleReplaceButton.classList.toggle("active", findReplaceState.showReplace);
-  findInput.value = findReplaceState.query;
-  replaceInput.value = findReplaceState.replaceText;
-  findMatchCaseButton.classList.toggle("active", findReplaceState.matchCase);
-  findMatchWordButton.classList.toggle("active", findReplaceState.matchWholeWord);
-  findMatchCaseButton.setAttribute("aria-pressed", String(findReplaceState.matchCase));
-  findMatchWordButton.setAttribute("aria-pressed", String(findReplaceState.matchWholeWord));
-  findMatchCaseButton.title = `${t("find.matchCase")} (${findReplaceState.matchCase ? "on" : "off"})`;
-  findMatchWordButton.title = `${t("find.matchWholeWord")} (${findReplaceState.matchWholeWord ? "on" : "off"})`;
-
-  const matches = getFindMatches();
-  const hasQuery = findReplaceState.query.length > 0;
-  const hasMatches = matches.length > 0;
-  const currentMatchIndex = hasMatches ? getCurrentFindMatchIndex(matches) : -1;
-  findReplaceState.activeMatchIndex = currentMatchIndex;
-  const current = currentMatchIndex >= 0 ? currentMatchIndex + 1 : 0;
-  findStatus.textContent = hasQuery
-    ? hasMatches
-      ? formatMessage(t("find.result"), { current: String(current), total: String(matches.length) })
-      : t("find.result.none")
-    : "";
-
-  findPrevButton.disabled = !hasMatches;
-  findNextButton.disabled = !hasMatches;
-  findReplaceButton.disabled = !hasMatches;
-  findReplaceAllButton.disabled = !hasMatches;
-}
-
-function getCurrentFindMatchIndex(matches: Array<{ start: number; end: number }>) {
-  if (matches.length === 0) {
-    return -1;
-  }
-
-  const selectionStart = editor.selectionStart ?? 0;
-  const selectionEnd = editor.selectionEnd ?? selectionStart;
-  const selectedIndex = matches.findIndex((match) => match.start === selectionStart && match.end === selectionEnd);
-
-  if (selectedIndex >= 0) {
-    return selectedIndex;
-  }
-
-  if (findReplaceState.activeMatchIndex >= 0 && findReplaceState.activeMatchIndex < matches.length) {
-    return findReplaceState.activeMatchIndex;
-  }
-
-  const caret = selectionEnd;
-  const containingIndex = matches.findIndex((match) => caret >= match.start && caret <= match.end);
-
-  if (containingIndex >= 0) {
-    return containingIndex;
-  }
-
-  const nextIndex = matches.findIndex((match) => match.start >= caret);
-
-  if (nextIndex >= 0) {
-    return nextIndex;
-  }
-
-  return 0;
 }
 
 function ensureAutocompleteItemVisible() {
@@ -1895,53 +1735,6 @@ function toggleInsertMenu() {
   openInsertMenu(0);
 }
 
-function openFindPanel(showReplace: boolean) {
-  findReplaceState.isOpen = true;
-  findReplaceState.showReplace = showReplace;
-  const selectedText = editor.value.slice(editor.selectionStart ?? 0, editor.selectionEnd ?? 0).trim();
-
-  if (selectedText) {
-    findReplaceState.query = selectedText;
-    findReplaceState.activeMatchIndex = -1;
-  }
-
-  closeInsertMenu();
-  closeSettingsMenu();
-  closeAutocomplete();
-  renderFindPanel();
-  window.requestAnimationFrame(() => {
-    findInput.focus();
-    findInput.select();
-  });
-}
-
-function toggleFindReplaceMode() {
-  findReplaceState.showReplace = !findReplaceState.showReplace;
-  renderFindPanel();
-  window.requestAnimationFrame(() => {
-    if (findReplaceState.showReplace) {
-      replaceInput.focus();
-      return;
-    }
-
-    findInput.focus();
-  });
-}
-
-function closeFindPanel(restoreFocus = false) {
-  if (!findReplaceState.isOpen) {
-    return;
-  }
-
-  findReplaceState.isOpen = false;
-  findReplaceState.activeMatchIndex = -1;
-  renderFindPanel();
-
-  if (restoreFocus) {
-    editor.focus();
-  }
-}
-
 function openInsertMenu(focusIndex = 0) {
   setIsInsertMenuOpen(true);
   closeSettingsMenu();
@@ -1993,122 +1786,6 @@ function updateInsertMenuPosition() {
   insertMenu.style.top = `${Math.round(clampedTop)}px`;
   insertMenu.style.width = `${Math.round(menuWidth)}px`;
   insertMenu.style.maxHeight = `${Math.round(maxHeight)}px`;
-}
-
-function getFindMatches() {
-  return getFindMatchesImpl(editor.value, {
-    query: findReplaceState.query,
-    matchCase: findReplaceState.matchCase,
-    matchWholeWord: findReplaceState.matchWholeWord
-  });
-}
-
-async function findNext(direction: 1 | -1) {
-  const matches = getFindMatches();
-
-  if (matches.length === 0) {
-    findReplaceState.activeMatchIndex = -1;
-    renderFindPanel();
-    return;
-  }
-
-  const selectionStart = editor.selectionStart ?? 0;
-  const selectionEnd = editor.selectionEnd ?? selectionStart;
-  let nextIndex: number;
-
-  if (direction > 0) {
-    nextIndex = matches.findIndex((match) => match.start > selectionEnd);
-
-    if (nextIndex < 0) {
-      nextIndex = 0;
-    }
-  } else {
-    nextIndex = matches.length - 1;
-
-    for (let index = matches.length - 1; index >= 0; index -= 1) {
-      if (matches[index].end < selectionStart) {
-        nextIndex = index;
-        break;
-      }
-    }
-  }
-
-  findReplaceState.activeMatchIndex = nextIndex;
-  const match = matches[nextIndex];
-  editor.focus();
-  editor.setSelectionRange(match.start, match.end);
-  renderFindPanel();
-}
-
-async function replaceCurrentMatch() {
-  const matches = getFindMatches();
-
-  if (matches.length === 0) {
-    return;
-  }
-
-  const selectedStart = editor.selectionStart ?? 0;
-  const selectedEnd = editor.selectionEnd ?? 0;
-  let targetIndex = matches.findIndex((match) => match.start === selectedStart && match.end === selectedEnd);
-
-  if (targetIndex < 0) {
-    await findNext(1);
-    return;
-  }
-
-  const match = matches[targetIndex];
-  applyEditorEdit({
-    start: match.start,
-    end: match.end,
-    text: findReplaceState.replaceText
-  });
-
-  const delta = findReplaceState.replaceText.length;
-  editor.setSelectionRange(match.start, match.start + delta);
-
-  const nextMatches = getFindMatches();
-  if (nextMatches.length === 0) {
-    findReplaceState.activeMatchIndex = -1;
-    renderFindPanel();
-    return;
-  }
-
-  targetIndex = Math.min(targetIndex, nextMatches.length - 1);
-  findReplaceState.activeMatchIndex = targetIndex;
-  renderFindPanel();
-  await findNext(1);
-}
-
-async function replaceAllMatches() {
-  const matches = getFindMatches();
-
-  if (matches.length === 0) {
-    return;
-  }
-
-  const source = editor.value;
-  const replacement = findReplaceState.replaceText;
-  let cursor = 0;
-  const chunks: string[] = [];
-  let lastReplacementEnd = 0;
-
-  for (const match of matches) {
-    chunks.push(source.slice(cursor, match.start));
-    chunks.push(replacement);
-    lastReplacementEnd = chunks.join("").length;
-    cursor = match.end;
-  }
-
-  chunks.push(source.slice(cursor));
-  const nextValue = chunks.join("");
-
-  editor.focus();
-  editor.value = nextValue;
-  const caret = Math.min(lastReplacementEnd, nextValue.length);
-  editor.setSelectionRange(caret, caret);
-  syncTextFieldState(editor);
-  findReplaceState.activeMatchIndex = -1;
-  renderFindPanel();
 }
 
 function applyFormattingAction(action: "bold" | "italic" | "link" | "code" | "quote") {
@@ -2547,10 +2224,10 @@ async function setupMenuListener() {
         setTheme(state.theme === "light" ? "dark" : "light");
         break;
       case "edit.find":
-        openFindPanel(false);
+        findController.openFind(false);
         break;
       case "edit.replace":
-        openFindPanel(true);
+        findController.openFind(true);
         break;
       case "format.bold":
         applyFormattingAction("bold");
