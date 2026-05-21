@@ -9,15 +9,12 @@ import type {
   DraftSession,
   EditorAutocompleteContext,
   EditorAutocompleteItem,
-  EditorAutocompleteState,
   EditorHistorySnapshot,
   EditorSelectionEdit,
   EditorState,
-  FindReplaceState,
   InsertMenuItem,
   Locale,
   OpenFile,
-  PendingCloseRequest,
   TauriMarkdownFile,
   TauriSavedMarkdownFile,
   ThemeMode,
@@ -68,9 +65,33 @@ import {
   parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl,
   parseSavedDraftSession,
   parseSavedLocale,
-  parseSavedRecentFiles,
   parseSavedZoom
 } from "./utils/storage";
+import {
+  activeScrollSource,
+  autocompleteState,
+  currentHistorySnapshot,
+  findReplaceState,
+  globalEventListeners,
+  isApplyingHistoryChange,
+  isInsertMenuOpen,
+  isSettingsMenuOpen,
+  pendingCloseRequest,
+  pendingScrollSyncFrame,
+  programmaticScrollSource,
+  recentFiles,
+  redoHistoryStack,
+  setActiveScrollSource,
+  setCurrentHistorySnapshot,
+  setIsApplyingHistoryChange,
+  setIsInsertMenuOpen,
+  setIsSettingsMenuOpen,
+  setPendingCloseRequest,
+  setPendingScrollSyncFrame,
+  setProgrammaticScrollSource,
+  state,
+  undoHistoryStack
+} from "./state";
 
 marked.use({
   gfm: true,
@@ -451,14 +472,13 @@ const savedTheme = localStorage.getItem(THEME_KEY);
 const savedZoom = localStorage.getItem(ZOOM_KEY);
 const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY);
 const savedLocale = localStorage.getItem(LOCALE_KEY);
-const recentFiles = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
 const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
 const initialActiveFile =
   initialSession.openFiles.find((file) => file.id === initialSession.activeFileId) ?? initialSession.openFiles[0];
 const initialAutocompleteShortcutId = parseSavedAutocompleteShortcutId(savedAutocompleteShortcut);
 const initialLocale = parseSavedLocale(savedLocale);
 
-const state: EditorState = {
+Object.assign(state, {
   content: initialActiveFile.content,
   fileName: initialActiveFile.name,
   nativePath: initialActiveFile.nativePath,
@@ -471,7 +491,7 @@ const state: EditorState = {
   openFiles: initialSession.openFiles,
   autocompleteShortcutId: initialAutocompleteShortcutId,
   locale: initialLocale
-};
+} satisfies EditorState);
 
 app.innerHTML = `
   <main class="shell">
@@ -695,45 +715,6 @@ const findToggleReplaceButton = requireElement<HTMLButtonElement>("[data-action=
 const findReplaceButton = requireElement<HTMLButtonElement>("[data-action='find-replace']");
 const findReplaceAllButton = requireElement<HTMLButtonElement>("[data-action='find-replace-all']");
 
-let activeScrollSource: "editor" | "preview" = "editor";
-let programmaticScrollSource: "editor" | "preview" | null = null;
-let pendingScrollSyncFrame = 0;
-
-const globalEventListeners: Array<{
-  target: Window | Document;
-  type: string;
-  listener: EventListener;
-}> = [];
-let pendingCloseRequest: PendingCloseRequest | null = null;
-let isInsertMenuOpen = false;
-let isSettingsMenuOpen = false;
-const undoHistoryStack: EditorHistorySnapshot[] = [];
-const redoHistoryStack: EditorHistorySnapshot[] = [];
-let isApplyingHistoryChange = false;
-let currentHistorySnapshot: EditorHistorySnapshot = {
-  value: "",
-  selectionStart: 0,
-  selectionEnd: 0
-};
-const findReplaceState: FindReplaceState = {
-  isOpen: false,
-  query: "",
-  replaceText: "",
-  matchCase: false,
-  matchWholeWord: false,
-  showReplace: false,
-  activeMatchIndex: -1
-};
-const autocompleteState: EditorAutocompleteState = {
-  isOpen: false,
-  items: [],
-  activeIndex: 0,
-  manual: false,
-  interactionMode: "keyboard",
-  anchorTop: 0,
-  anchorLeft: 0
-};
-
 editor.value = state.content;
 resetEditorHistory();
 void setupMenuListener();
@@ -882,7 +863,7 @@ replaceInput.addEventListener("keydown", (event) => {
 editor.addEventListener("input", () => {
   state.content = editor.value;
   state.isDirty = true;
-  activeScrollSource = "editor";
+  setActiveScrollSource("editor");
   persistDraft();
   syncActiveFile();
   render();
@@ -1636,7 +1617,7 @@ function openConfirmDialog(message: string) {
 }
 
 function closeConfirmDialog() {
-  pendingCloseRequest = null;
+  setPendingCloseRequest(null);
   dialogBackdrop.classList.add("hidden");
   dialogBackdrop.setAttribute("aria-hidden", "true");
 }
@@ -1897,7 +1878,7 @@ function activateFile(fileId: string) {
   state.fileName = file.name;
   state.nativePath = file.nativePath;
   state.isDirty = file.isDirty;
-  activeScrollSource = "editor";
+  setActiveScrollSource("editor");
   editor.value = file.content;
   titleInput.value = file.name;
   resetEditorHistory();
@@ -1937,7 +1918,7 @@ async function requestCloseFile(fileId: string) {
     return;
   }
 
-  pendingCloseRequest = { fileId };
+  setPendingCloseRequest({ fileId });
   openConfirmDialog(formatMessage(t("dialog.close.message"), { name: file.name }));
 }
 
@@ -2078,7 +2059,7 @@ function closeFindPanel(restoreFocus = false) {
 }
 
 function openInsertMenu(focusIndex = 0) {
-  isInsertMenuOpen = true;
+  setIsInsertMenuOpen(true);
   closeSettingsMenu();
   closeAutocomplete();
   renderInsertMenu();
@@ -2093,7 +2074,7 @@ function closeInsertMenu(restoreFocus = false) {
     return;
   }
 
-  isInsertMenuOpen = false;
+  setIsInsertMenuOpen(false);
   renderInsertMenu();
   insertMenu.style.left = "";
   insertMenu.style.top = "";
@@ -2724,7 +2705,7 @@ function toggleSettingsMenu() {
 }
 
 function openSettingsMenu(focusLast = false) {
-  isSettingsMenuOpen = true;
+  setIsSettingsMenuOpen(true);
   closeInsertMenu();
   closeAutocomplete();
   renderSettingsMenu();
@@ -2738,7 +2719,7 @@ function closeSettingsMenu(restoreFocus = false) {
     return;
   }
 
-  isSettingsMenuOpen = false;
+  setIsSettingsMenuOpen(false);
   renderSettingsMenu();
 
   if (restoreFocus) {
@@ -2872,7 +2853,7 @@ function captureEditorHistorySnapshot() {
   }
 
   redoHistoryStack.length = 0;
-  currentHistorySnapshot = nextSnapshot;
+  setCurrentHistorySnapshot(nextSnapshot);
 }
 
 function readEditorHistorySnapshot(): EditorHistorySnapshot {
@@ -2884,19 +2865,19 @@ function readEditorHistorySnapshot(): EditorHistorySnapshot {
 }
 
 function applyEditorHistorySnapshot(snapshot: EditorHistorySnapshot) {
-  isApplyingHistoryChange = true;
+  setIsApplyingHistoryChange(true);
   editor.value = snapshot.value;
   editor.focus();
   editor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
-  currentHistorySnapshot = readEditorHistorySnapshot();
+  setCurrentHistorySnapshot(readEditorHistorySnapshot());
   syncTextFieldState(editor);
-  isApplyingHistoryChange = false;
+  setIsApplyingHistoryChange(false);
 }
 
 function resetEditorHistory() {
   undoHistoryStack.length = 0;
   redoHistoryStack.length = 0;
-  currentHistorySnapshot = readEditorHistorySnapshot();
+  setCurrentHistorySnapshot(readEditorHistorySnapshot());
 }
 
 function undoEditorHistory() {
@@ -2949,7 +2930,7 @@ function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
 
     state.content = editor.value;
     state.isDirty = true;
-    activeScrollSource = "editor";
+    setActiveScrollSource("editor");
     persistDraft();
     syncActiveFile();
     render();
@@ -2992,10 +2973,12 @@ function scheduleScrollSync(source: HTMLElement, target: HTMLElement, sourceName
     cancelAnimationFrame(pendingScrollSyncFrame);
   }
 
-  pendingScrollSyncFrame = requestAnimationFrame(() => {
-    pendingScrollSyncFrame = 0;
-    syncScroll(source, target, sourceName);
-  });
+  setPendingScrollSyncFrame(
+    requestAnimationFrame(() => {
+      setPendingScrollSyncFrame(0);
+      syncScroll(source, target, sourceName);
+    })
+  );
 }
 
 function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
@@ -3010,7 +2993,7 @@ function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "edito
     return;
   }
 
-  activeScrollSource = sourceName;
+  setActiveScrollSource(sourceName);
   const ratio = source.scrollTop / sourceScrollable;
   const nextTop = targetScrollable * ratio;
 
@@ -3018,11 +3001,11 @@ function syncScroll(source: HTMLElement, target: HTMLElement, sourceName: "edito
     return;
   }
 
-  programmaticScrollSource = sourceName === "editor" ? "preview" : "editor";
+  setProgrammaticScrollSource(sourceName === "editor" ? "preview" : "editor");
   target.scrollTop = nextTop;
 
   requestAnimationFrame(() => {
-    programmaticScrollSource = null;
+    setProgrammaticScrollSource(null);
   });
 }
 
