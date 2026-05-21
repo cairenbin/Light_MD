@@ -11,7 +11,6 @@ import type {
   EditorHistorySnapshot,
   EditorSelectionEdit,
   EditorState,
-  InsertMenuItem,
   OpenFile,
   TauriMarkdownFile,
   TauriSavedMarkdownFile,
@@ -22,21 +21,7 @@ import {
 } from "./constants";
 import { formatMessage, translate, type TranslationKey } from "./i18n/dictionaries";
 import { buildMarkdownContinuation } from "./editor/continuation";
-import {
-  buildAlignedTableEdit,
-  buildCodeFenceEdit,
-  buildDetailsEdit,
-  buildFootnoteDefinitionEdit,
-  buildFootnoteReferenceEdit,
-  buildHeadingEdit,
-  buildHtmlCommentEdit,
-  buildLineSnippetEdit,
-  buildLinkEdit,
-  buildMathBlockEdit,
-  buildReferenceLinkEdit,
-  buildTableEdit,
-  buildWrappedEdit
-} from "./editor/snippets";
+import { autocompleteItemIds, editorAutocompleteItems } from "./editor/items";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
@@ -52,6 +37,7 @@ import {
   syncRecentMenu
 } from "./storage/session";
 import { createFindController } from "./ui/find";
+import { createInsertController } from "./ui/insert-menu";
 import { createSettingsController } from "./ui/settings";
 import {
   activeScrollSource,
@@ -69,7 +55,6 @@ import {
   setActiveScrollSource,
   setCurrentHistorySnapshot,
   setIsApplyingHistoryChange,
-  setIsInsertMenuOpen,
   setPendingCloseRequest,
   setPendingScrollSyncFrame,
   setProgrammaticScrollSource,
@@ -95,7 +80,6 @@ import {
   fileActionButtons,
   formattingButtons,
   initDom,
-  insertMenu,
   insertMenuButton,
   lineStat,
   mainArea,
@@ -185,296 +169,6 @@ const autocompleteShortcutOptions: AutocompleteShortcutOption[] = [
   }
 ];
 
-const editorAutocompleteItems: EditorAutocompleteItem[] = [
-  {
-    id: "heading-1",
-    label: "Heading 1",
-    detail: "# Main heading",
-    keywords: ["heading", "title", "h1", "#"],
-    autoPrefixes: ["#"],
-    buildEdit: (context) => buildHeadingEdit(context, 1)
-  },
-  {
-    id: "heading-2",
-    label: "Heading 2",
-    detail: "## Section heading",
-    keywords: ["heading", "section", "h2", "##"],
-    autoPrefixes: ["##"],
-    buildEdit: (context) => buildHeadingEdit(context, 2)
-  },
-  {
-    id: "heading-3",
-    label: "Heading 3",
-    detail: "### Subsection heading",
-    keywords: ["heading", "subsection", "h3", "###"],
-    autoPrefixes: ["###"],
-    buildEdit: (context) => buildHeadingEdit(context, 3)
-  },
-  {
-    id: "bullet-list",
-    label: "Bullet List",
-    detail: "- List item",
-    keywords: ["list", "bullet", "unordered", "-"],
-    autoPrefixes: ["-", "*", "+"],
-    buildEdit: (context) => buildLineSnippetEdit(context, "- List item", /^[-*+]\s*$/)
-  },
-  {
-    id: "task-list",
-    label: "Task List",
-    detail: "- [ ] Task",
-    keywords: ["task", "checkbox", "todo", "- [ ]"],
-    autoPrefixes: ["-", "- [", "- []"],
-    buildEdit: (context) => buildLineSnippetEdit(context, "- [ ] Task", /^-\s*(\[\]|\[ \])?\s*$/)
-  },
-  {
-    id: "task-list-done",
-    label: "Completed Task",
-    detail: "- [x] Completed task",
-    keywords: ["task", "checkbox", "done", "completed", "- [x]"],
-    autoPrefixes: ["- [x]", "- [X]"],
-    buildEdit: (context) => buildLineSnippetEdit(context, "- [x] Completed task", /^-\s*\[(x|X)\]\s*$/)
-  },
-  {
-    id: "numbered-list",
-    label: "Numbered List",
-    detail: "1. List item",
-    keywords: ["list", "ordered", "numbered", "1."],
-    autoPrefixes: ["1", "1."],
-    buildEdit: (context) => buildLineSnippetEdit(context, "1. List item", /^\d+\.?\s*$/)
-  },
-  {
-    id: "blockquote",
-    label: "Blockquote",
-    detail: "> Quote",
-    keywords: ["quote", "blockquote", ">"],
-    autoPrefixes: [">"],
-    buildEdit: (context) => buildLineSnippetEdit(context, "> Quote", /^>\s*$/)
-  },
-  {
-    id: "horizontal-rule",
-    label: "Horizontal Rule",
-    detail: "---",
-    keywords: ["rule", "separator", "divider", "---"],
-    autoPrefixes: ["---", "***", "___"],
-    buildEdit: (context) => buildLineSnippetEdit(context, "---", /^(-{3,}|\*{3,}|_{3,})\s*$/)
-  },
-  {
-    id: "code-fence",
-    label: "Code Fence",
-    detail: "```md fenced code block",
-    keywords: ["code", "fence", "snippet", "```"],
-    autoPrefixes: ["```", "~~~"],
-    buildEdit: (context) => buildCodeFenceEdit(context)
-  },
-  {
-    id: "code-fence-ts",
-    label: "Code Fence: TypeScript",
-    detail: "```ts",
-    keywords: ["code", "fence", "typescript", "ts"],
-    autoPrefixes: ["```ts", "~~~ts"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "ts")
-  },
-  {
-    id: "code-fence-js",
-    label: "Code Fence: JavaScript",
-    detail: "```js",
-    keywords: ["code", "fence", "javascript", "js"],
-    autoPrefixes: ["```js", "~~~js"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "js")
-  },
-  {
-    id: "code-fence-bash",
-    label: "Code Fence: Bash",
-    detail: "```bash",
-    keywords: ["code", "fence", "bash", "shell", "sh"],
-    autoPrefixes: ["```bash", "~~~bash", "```sh", "~~~sh"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "bash")
-  },
-  {
-    id: "code-fence-json",
-    label: "Code Fence: JSON",
-    detail: "```json",
-    keywords: ["code", "fence", "json"],
-    autoPrefixes: ["```json", "~~~json"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "json")
-  },
-  {
-    id: "code-fence-rust",
-    label: "Code Fence: Rust",
-    detail: "```rust",
-    keywords: ["code", "fence", "rust", "rs"],
-    autoPrefixes: ["```rust", "~~~rust", "```rs", "~~~rs"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "rust")
-  },
-  {
-    id: "code-fence-python",
-    label: "Code Fence: Python",
-    detail: "```python",
-    keywords: ["code", "fence", "python", "py"],
-    autoPrefixes: ["```python", "~~~python", "```py", "~~~py"],
-    buildEdit: (context) => buildCodeFenceEdit(context, "python")
-  },
-  {
-    id: "link",
-    label: "Link",
-    detail: "[label](https://example.com)",
-    keywords: ["link", "url", "reference", "["],
-    autoPrefixes: ["["],
-    buildEdit: (context) => buildLinkEdit(context, false)
-  },
-  {
-    id: "image",
-    label: "Image",
-    detail: "![alt text](https://example.com/image.png)",
-    keywords: ["image", "media", "alt", "!["],
-    autoPrefixes: ["!["],
-    buildEdit: (context) => buildLinkEdit(context, true)
-  },
-  {
-    id: "reference-link",
-    label: "Reference Link",
-    detail: "[label][ref] + [ref]: https://example.com",
-    keywords: ["reference", "link", "ref", "citation"],
-    autoPrefixes: ["[ref]", "[]"],
-    buildEdit: (context) => buildReferenceLinkEdit(context)
-  },
-  {
-    id: "footnote-ref",
-    label: "Footnote Reference",
-    detail: "[^1]",
-    keywords: ["footnote", "reference", "[^1]"],
-    autoPrefixes: ["[^"],
-    buildEdit: (context) => buildFootnoteReferenceEdit(context)
-  },
-  {
-    id: "footnote-def",
-    label: "Footnote Definition",
-    detail: "[^1]: Footnote text",
-    keywords: ["footnote", "definition", "note"],
-    autoPrefixes: ["[^1]:", "[^"],
-    buildEdit: (context) => buildFootnoteDefinitionEdit(context)
-  },
-  {
-    id: "table",
-    label: "Table",
-    detail: "| Column | Column |",
-    keywords: ["table", "columns", "|"],
-    autoPrefixes: ["|"],
-    buildEdit: (context) => buildTableEdit(context)
-  },
-  {
-    id: "table-alignment",
-    label: "Aligned Table",
-    detail: "| :--- | :---: | ---: |",
-    keywords: ["table", "align", "columns"],
-    autoPrefixes: ["|:"],
-    buildEdit: (context) => buildAlignedTableEdit(context)
-  },
-  {
-    id: "bold",
-    label: "Bold",
-    detail: "**strong text**",
-    keywords: ["bold", "strong", "**"],
-    autoPrefixes: ["**"],
-    buildEdit: (context) => buildWrappedEdit(context, "**", "**", "bold text")
-  },
-  {
-    id: "italic",
-    label: "Italic",
-    detail: "_emphasis_",
-    keywords: ["italic", "emphasis", "_"],
-    autoPrefixes: ["_"],
-    buildEdit: (context) => buildWrappedEdit(context, "_", "_", "emphasis")
-  },
-  {
-    id: "strikethrough",
-    label: "Strikethrough",
-    detail: "~~removed text~~",
-    keywords: ["strikethrough", "delete", "removed", "~~"],
-    autoPrefixes: ["~~"],
-    buildEdit: (context) => buildWrappedEdit(context, "~~", "~~", "removed text")
-  },
-  {
-    id: "highlight",
-    label: "Highlight",
-    detail: "==highlight==",
-    keywords: ["highlight", "mark", "=="],
-    autoPrefixes: ["=="],
-    buildEdit: (context) => buildWrappedEdit(context, "==", "==", "highlight")
-  },
-  {
-    id: "inline-code",
-    label: "Inline Code",
-    detail: "`inline code`",
-    keywords: ["code", "inline", "`"],
-    autoPrefixes: ["`"],
-    buildEdit: (context) => buildWrappedEdit(context, "`", "`", "code")
-  },
-  {
-    id: "math-inline",
-    label: "Inline Math",
-    detail: "$E = mc^2$",
-    keywords: ["math", "latex", "inline", "$"],
-    autoPrefixes: ["$"],
-    buildEdit: (context) => buildWrappedEdit(context, "$", "$", "E = mc^2")
-  },
-  {
-    id: "math-block",
-    label: "Math Block",
-    detail: "$$",
-    keywords: ["math", "latex", "block", "$$"],
-    autoPrefixes: ["$$"],
-    buildEdit: (context) => buildMathBlockEdit(context)
-  },
-  {
-    id: "details",
-    label: "Details Block",
-    detail: "<details><summary>Summary</summary></details>",
-    keywords: ["details", "summary", "fold", "collapse", "html"],
-    autoPrefixes: ["<det", "<sum"],
-    buildEdit: (context) => buildDetailsEdit(context)
-  },
-  {
-    id: "html-comment",
-    label: "HTML Comment",
-    detail: "<!-- comment -->",
-    keywords: ["comment", "html", "<!--"],
-    autoPrefixes: ["<!--"],
-    buildEdit: (context) => buildHtmlCommentEdit(context)
-  }
-];
-
-const autocompleteItemIds = new Set([
-  "heading-1",
-  "heading-2",
-  "heading-3",
-  "bullet-list",
-  "task-list",
-  "task-list-done",
-  "numbered-list",
-  "blockquote",
-  "link",
-  "image",
-  "bold",
-  "italic",
-  "strikethrough",
-  "inline-code"
-]);
-
-const insertMenuItems: InsertMenuItem[] = [
-  pickInsertMenuItem("horizontal-rule"),
-  pickInsertMenuItem("code-fence"),
-  pickInsertMenuItem("code-fence-ts"),
-  pickInsertMenuItem("code-fence-js"),
-  pickInsertMenuItem("code-fence-bash"),
-  pickInsertMenuItem("code-fence-json"),
-  pickInsertMenuItem("code-fence-rust"),
-  pickInsertMenuItem("code-fence-python"),
-  pickInsertMenuItem("table"),
-  pickInsertMenuItem("table-alignment"),
-  pickInsertMenuItem("reference-link"),
-  pickInsertMenuItem("details")
-];
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -648,7 +342,7 @@ initDom(app);
 const findController = createFindController({
   applyEditorEdit,
   syncTextFieldState,
-  closeInsertMenu,
+  closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
   closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
   closeAutocomplete
 });
@@ -657,7 +351,7 @@ findController.bindListeners();
 const settingsController = createSettingsController({
   render,
   renderShortcutsDrawer: renderShortcuts,
-  closeInsertMenu,
+  closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
   closeAutocomplete,
   syncActiveScroll,
   getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions,
@@ -665,6 +359,15 @@ const settingsController = createSettingsController({
   getShortcutOptionLabel
 });
 settingsController.bindListeners();
+
+const insertController = createInsertController({
+  applyEditorEdit,
+  getEditorAutocompleteContext,
+  closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
+  closeAutocomplete,
+  setMode
+});
+insertController.bindListeners();
 
 editor.value = state.content;
 resetEditorHistory();
@@ -674,67 +377,11 @@ render();
 persistDraft();
 
 const resizeListener = () => {
-  updateInsertMenuPosition();
+  insertController.updateMenuPosition();
   updateAutocompletePosition();
 };
 window.addEventListener("resize", resizeListener);
 globalEventListeners.push({ target: window, type: "resize", listener: resizeListener });
-
-insertMenuButton.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    openInsertMenu(0);
-    return;
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    openInsertMenu(insertMenuItems.length - 1);
-  }
-});
-
-insertMenu.addEventListener("keydown", (event) => {
-  if (!isInsertMenuOpen) {
-    return;
-  }
-
-  const buttons = getInsertMenuButtons();
-
-  if (buttons.length === 0) {
-    return;
-  }
-
-  const currentIndex = buttons.findIndex((button) => button === document.activeElement);
-
-  if (event.key === "ArrowDown") {
-    event.preventDefault();
-    focusInsertMenuItem((currentIndex + 1 + buttons.length) % buttons.length);
-    return;
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    focusInsertMenuItem((currentIndex - 1 + buttons.length) % buttons.length);
-    return;
-  }
-
-  if (event.key === "Home") {
-    event.preventDefault();
-    focusInsertMenuItem(0);
-    return;
-  }
-
-  if (event.key === "End") {
-    event.preventDefault();
-    focusInsertMenuItem(buttons.length - 1);
-    return;
-  }
-
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeInsertMenu(true);
-  }
-});
 
 editor.addEventListener("input", () => {
   state.content = editor.value;
@@ -876,38 +523,7 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
-  if (action === "toggle-insert-menu") {
-    toggleInsertMenu();
-    return;
-  }
-
-  if (action === "format-bold") {
-    applyFormattingAction("bold");
-    return;
-  }
-
-  if (action === "format-italic") {
-    applyFormattingAction("italic");
-    return;
-  }
-
-  if (action === "format-link") {
-    applyFormattingAction("link");
-    return;
-  }
-
-  if (action === "format-code") {
-    applyFormattingAction("code");
-    return;
-  }
-
-  if (action === "format-quote") {
-    applyFormattingAction("quote");
-    return;
-  }
-
-  if (action === "insert-snippet" && target.dataset.insertId) {
-    applyInsertMenuItem(target.dataset.insertId);
+  if (action && insertController.handleAction(action, target)) {
     return;
   }
 
@@ -962,7 +578,7 @@ const documentKeydownListener: EventListener = async (event) => {
 
   if (event.key === "Escape" && isInsertMenuOpen) {
     event.preventDefault();
-    closeInsertMenu(true);
+    insertController.closeMenu(true);
     return;
   }
 
@@ -1057,7 +673,7 @@ const documentClickListener: EventListener = (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
 
   if (isInsertMenuOpen && !target?.closest(".toolbar-menu-shell")) {
-    closeInsertMenu();
+    insertController.closeMenu();
   }
 
   if (isSettingsMenuOpen && !target?.closest(".settings-shell")) {
@@ -1077,7 +693,7 @@ function render() {
   settingsController.renderZoom();
   renderDocuments();
   findController.renderPanel();
-  renderInsertMenu();
+  insertController.renderMenu();
   settingsController.renderMenu();
   renderShortcuts();
   renderSaveState();
@@ -1205,28 +821,6 @@ function renderDocuments() {
 
 function renderShortcuts() {
   shortcutCopy.innerHTML = buildShortcutMarkup();
-}
-
-function renderInsertMenu() {
-  insertMenuButton.setAttribute("aria-expanded", String(isInsertMenuOpen));
-  insertMenu.classList.toggle("hidden", !isInsertMenuOpen);
-  insertMenu.setAttribute("aria-hidden", String(!isInsertMenuOpen));
-  insertMenu.setAttribute("tabindex", isInsertMenuOpen ? "0" : "-1");
-
-  insertMenu.innerHTML = insertMenuItems
-    .map(
-      (item, index) => `
-      <button class="insert-menu-item" type="button" tabindex="-1" data-index="${index}" data-action="insert-snippet" data-insert-id="${item.id}">
-        <span class="insert-menu-copy">
-          <span class="insert-menu-label">${escapeHtml(item.label)}</span>
-          <span class="insert-menu-detail">${escapeHtml(item.detail)}</span>
-        </span>
-      </button>
-    `
-    )
-    .join("");
-
-  updateInsertMenuPosition();
 }
 
 function renderAutocomplete() {
@@ -1562,158 +1156,6 @@ function toggleSidebar() {
   state.isSidebarOpen = !state.isSidebarOpen;
   persistSidebar(state.isSidebarOpen);
   renderDocuments();
-}
-
-function toggleInsertMenu() {
-  if (isInsertMenuOpen) {
-    closeInsertMenu(true);
-    return;
-  }
-
-  openInsertMenu(0);
-}
-
-function openInsertMenu(focusIndex = 0) {
-  setIsInsertMenuOpen(true);
-  settingsController.closeMenu();
-  closeAutocomplete();
-  renderInsertMenu();
-  updateInsertMenuPosition();
-  window.setTimeout(() => {
-    focusInsertMenuItem(focusIndex);
-  }, 0);
-}
-
-function closeInsertMenu(restoreFocus = false) {
-  if (!isInsertMenuOpen) {
-    return;
-  }
-
-  setIsInsertMenuOpen(false);
-  renderInsertMenu();
-  insertMenu.style.left = "";
-  insertMenu.style.top = "";
-  insertMenu.style.width = "";
-  insertMenu.style.maxHeight = "";
-
-  if (restoreFocus) {
-    insertMenuButton.focus();
-  }
-}
-
-function updateInsertMenuPosition() {
-  if (!isInsertMenuOpen) {
-    return;
-  }
-
-  const viewportPadding = 16;
-  const verticalGap = 10;
-  const buttonRect = insertMenuButton.getBoundingClientRect();
-  const menuWidth = Math.min(340, Math.max(220, window.innerWidth - viewportPadding * 2));
-  const maxLeft = window.innerWidth - viewportPadding - menuWidth;
-  const left = Math.max(viewportPadding, Math.min(buttonRect.left, maxLeft));
-  const preferredTop = buttonRect.bottom + verticalGap;
-  const minUsableHeight = 180;
-  const clampedTop = Math.min(
-    preferredTop,
-    Math.max(viewportPadding, window.innerHeight - viewportPadding - minUsableHeight)
-  );
-  const maxHeight = Math.max(140, Math.min(360, window.innerHeight - clampedTop - viewportPadding));
-
-  insertMenu.style.left = `${Math.round(left)}px`;
-  insertMenu.style.top = `${Math.round(clampedTop)}px`;
-  insertMenu.style.width = `${Math.round(menuWidth)}px`;
-  insertMenu.style.maxHeight = `${Math.round(maxHeight)}px`;
-}
-
-function applyFormattingAction(action: "bold" | "italic" | "link" | "code" | "quote") {
-  if (state.mode === "preview") {
-    setMode("write");
-  }
-
-  const context = getEditorAutocompleteContext();
-
-  if (action === "quote") {
-    const quoteItem = editorAutocompleteItems.find((item) => item.id === "blockquote");
-    if (!quoteItem) {
-      return;
-    }
-    applyEditorEdit(quoteItem.buildEdit(context));
-    return;
-  }
-
-  if (action === "bold") {
-    applyEditorEdit(buildWrappedEdit(context, "**", "**", "bold text"));
-    return;
-  }
-
-  if (action === "italic") {
-    applyEditorEdit(buildWrappedEdit(context, "_", "_", "emphasis"));
-    return;
-  }
-
-  if (action === "link") {
-    applyEditorEdit(buildLinkEdit(context, false));
-    return;
-  }
-
-  applyEditorEdit(buildWrappedEdit(context, "`", "`", "code"));
-}
-
-function applyInsertMenuItem(insertId: string) {
-  const item = insertMenuItems.find((entry) => entry.id === insertId);
-
-  if (!item) {
-    return;
-  }
-
-  if (state.mode === "preview") {
-    setMode("write");
-  }
-
-  const context = getEditorAutocompleteContext();
-  const edit = item.buildEdit(context);
-  applyEditorEdit(adjustInsertEditForBlock(context, edit));
-  closeInsertMenu();
-}
-
-function adjustInsertEditForBlock(context: EditorAutocompleteContext, edit: EditorSelectionEdit): EditorSelectionEdit {
-  if (context.currentLine.trim().length === 0) {
-    return edit;
-  }
-
-  const insertionPoint = context.lineEnd;
-  const beforeText = context.value.slice(0, insertionPoint);
-  const afterText = context.value.slice(insertionPoint);
-  const prefix = beforeText.endsWith("\n") ? "" : "\n";
-  const suffix =
-    afterText.length === 0 ? "" : afterText.startsWith("\n\n") ? "" : afterText.startsWith("\n") ? "\n" : "\n\n";
-  const selectionStartOffset = (edit.selectionStart ?? edit.start + edit.text.length) - edit.start;
-  const selectionEndOffset = (edit.selectionEnd ?? edit.start + edit.text.length) - edit.start;
-
-  return {
-    start: insertionPoint,
-    end: insertionPoint,
-    text: `${prefix}${edit.text}${suffix}`,
-    selectionStart: insertionPoint + prefix.length + selectionStartOffset,
-    selectionEnd: insertionPoint + prefix.length + selectionEndOffset
-  };
-}
-
-function getInsertMenuButtons() {
-  return Array.from(insertMenu.querySelectorAll<HTMLButtonElement>(".insert-menu-item"));
-}
-
-function focusInsertMenuItem(index: number) {
-  const buttons = getInsertMenuButtons();
-  const target = buttons[index];
-
-  if (!target) {
-    insertMenu.focus();
-    return;
-  }
-
-  target.focus();
 }
 
 function handleAutocompleteKeyboard(event: KeyboardEvent) {
@@ -2068,19 +1510,19 @@ async function setupMenuListener() {
         findController.openFind(true);
         break;
       case "format.bold":
-        applyFormattingAction("bold");
+        insertController.applyFormatting("bold");
         break;
       case "format.italic":
-        applyFormattingAction("italic");
+        insertController.applyFormatting("italic");
         break;
       case "format.link":
-        applyFormattingAction("link");
+        insertController.applyFormatting("link");
         break;
       case "format.code":
-        applyFormattingAction("code");
+        insertController.applyFormatting("code");
         break;
       case "format.quote":
-        applyFormattingAction("quote");
+        insertController.applyFormatting("quote");
         break;
       default:
         break;
@@ -2331,21 +1773,6 @@ function parseSavedAutocompleteShortcutId(value: string | null): string {
 function getAvailableAutocompleteShortcutOptions() {
   const platform: "mac" | "other" = isMacPlatform() ? "mac" : "other";
   return autocompleteShortcutOptions.filter((option) => !option.platforms || option.platforms.includes(platform));
-}
-
-function pickInsertMenuItem(id: string): InsertMenuItem {
-  const item = editorAutocompleteItems.find((entry) => entry.id === id);
-
-  if (!item) {
-    throw new Error(`Insert menu item was not found: ${id}`);
-  }
-
-  return {
-    id: item.id,
-    label: item.label,
-    detail: item.detail,
-    buildEdit: item.buildEdit
-  };
 }
 
 function buildShortcutMarkup() {
