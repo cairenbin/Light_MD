@@ -25,9 +25,9 @@ export type EditorState = {
   locale: Locale;
 };
 
-export type PendingCloseRequest = {
-  fileId: string;
-};
+export type PendingCloseRequest =
+  | { kind: "close"; fileId: string }
+  | { kind: "reload"; fileId: string; freshContent: string; freshName: string };
 
 export type FindReplaceState = {
   isOpen: boolean;

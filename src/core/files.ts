@@ -476,7 +476,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       return;
     }
 
-    setPendingCloseRequest({ fileId });
+    setPendingCloseRequest({ kind: "close", fileId });
     openConfirmDialog(formatMessage(t("dialog.close.message"), { name: file.name }));
   }
 
@@ -507,7 +507,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
   }
 
   function discardPendingClose() {
-    if (!pendingCloseRequest) {
+    if (pendingCloseRequest?.kind !== "close") {
       return;
     }
 
@@ -517,7 +517,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
   }
 
   async function saveAndClosePendingFile() {
-    if (!pendingCloseRequest) {
+    if (pendingCloseRequest?.kind !== "close") {
       return;
     }
 
