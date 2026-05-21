@@ -25,6 +25,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Built-in UI language switching (`English`, `中文`, `日本語`) from Settings.
 - Native file dialogs and desktop shortcuts.
 - OS-aware shortcut display and shortcut option filtering.
+- Strict CSP, file IO restrictions, and a sanitized preview pipeline.
 
 ## Tech Stack
 
@@ -33,6 +34,24 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Rust for native commands and file operations.
 - `marked` for Markdown rendering.
 - `DOMPurify` for preview sanitization.
+- Vitest for unit tests on extracted helpers.
+- ESLint and Prettier for code style.
+- TypeScript `strict` mode with `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes` enabled.
+
+## Project Structure
+
+- `src/main.ts` — application entry and top-level wiring.
+- `src/editor/` — pure editor helpers (snippets, find matches, list/code continuation) with unit tests.
+- `src/utils/` — shared utilities (`html`, `path`, `platform`, `storage`).
+- `src/i18n/` — translation dictionaries and lookup helpers.
+- `src/types.ts` / `src/constants.ts` — shared type aliases and constants.
+- `src-tauri/` — Rust commands, Tauri configuration, and native menu wiring.
+
+## Security
+
+- Strict Content Security Policy in `tauri.conf.json` (`default-src 'self'`, no remote scripts, `object-src 'none'`, `frame-ancestors 'none'`).
+- Tauri file IO rejects extensions other than `.md`, `.markdown`, and `.txt`, and refuses symlinks or non-regular files for both read and write.
+- Preview HTML is sanitized through `DOMPurify`, with attribute and text escaping covering `'` and `>`.
 
 ## Run Locally
 
@@ -40,6 +59,22 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 npm install
 npm run tauri:dev
 ```
+
+## Scripts
+
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Vite dev server (browser). |
+| `npm run tauri:dev` | Tauri desktop dev shell. |
+| `npm run build` | `tsc` type-check followed by `vite build`. |
+| `npm run test` / `test:watch` / `test:coverage` | Vitest single run / watch / coverage. |
+| `npm run lint` / `lint:fix` | ESLint over `src`. |
+| `npm run format` / `format:check` | Prettier write / check. |
+| `npm run check` | Full pre-PR gate: build + test + lint + `cargo check`. |
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, development principles, and pull request guidelines.
 
 ## Status
 
