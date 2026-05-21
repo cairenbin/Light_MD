@@ -71,6 +71,9 @@ export interface FilesController {
 
   openConfirmDialog: (message: string) => void;
   closeConfirmDialog: () => void;
+
+  handleExternalChange: (path: string) => Promise<void>;
+  applyPendingReload: () => void;
 }
 
 function t(key: TranslationKey): string {
@@ -78,6 +81,22 @@ function t(key: TranslationKey): string {
 }
 
 export function createFilesController(deps: FilesControllerDeps): FilesController {
+  function watchPath(path: string) {
+    invoke("watch_file", { path }).catch((error) => {
+      console.error("watch_file failed", error);
+    });
+  }
+
+  function unwatchPath(path: string) {
+    invoke("unwatch_file", { path }).catch((error) => {
+      console.error("unwatch_file failed", error);
+    });
+  }
+
+  function isPathStillOpenElsewhere(path: string, exceptFileId: string) {
+    return state.openFiles.some((item) => item.id !== exceptFileId && item.nativePath === path);
+  }
+
   function openConfirmDialog(message: string) {
     confirmDialogMessage.textContent = message;
     dialogBackdrop.classList.remove("hidden");
@@ -407,6 +426,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
   }
 
   async function saveCurrentDocument(forceDialog = false) {
+    const previousPath = state.nativePath;
     try {
       const savedFile = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
         path: forceDialog ? null : state.nativePath,
@@ -422,6 +442,14 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       state.nativePath = savedFile.path;
       pushRecentFile(savedFile.path);
       titleInput.value = state.fileName;
+
+      if (previousPath !== savedFile.path) {
+        if (previousPath && !isPathStillOpenElsewhere(previousPath, state.activeFileId)) {
+          unwatchPath(previousPath);
+        }
+        watchPath(savedFile.path);
+      }
+
       markSaved();
       return true;
     } catch (error) {
@@ -453,8 +481,77 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       activateFile(openFile.id);
     }
 
+    watchPath(file.path);
     deps.closeAutocomplete();
     deps.render();
+  }
+
+  function applyReloadToFile(file: OpenFile, freshContent: string, freshName: string) {
+    file.content = freshContent;
+    file.name = freshName;
+    file.isDirty = false;
+
+    if (file.id === state.activeFileId) {
+      state.content = freshContent;
+      state.fileName = freshName;
+      state.isDirty = false;
+      editor.value = freshContent;
+      titleInput.value = freshName;
+      resetEditorHistory();
+    }
+
+    persistDraft();
+    deps.render();
+    deps.renderSaveState(t("state.reloaded"));
+  }
+
+  async function handleExternalChange(path: string) {
+    const file = state.openFiles.find((item) => item.nativePath === path);
+
+    if (!file) {
+      return;
+    }
+
+    let freshFile: TauriMarkdownFile | null;
+    try {
+      freshFile = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", { path });
+    } catch (error) {
+      console.error("handleExternalChange failed", error);
+      return;
+    }
+
+    if (!freshFile) {
+      return;
+    }
+
+    if (!file.isDirty) {
+      applyReloadToFile(file, freshFile.content, freshFile.name);
+      return;
+    }
+
+    setPendingCloseRequest({
+      kind: "reload",
+      fileId: file.id,
+      freshContent: freshFile.content,
+      freshName: freshFile.name
+    });
+    openConfirmDialog(formatMessage(t("dialog.reload.message"), { name: file.name }));
+  }
+
+  function applyPendingReload() {
+    if (pendingCloseRequest?.kind !== "reload") {
+      return;
+    }
+
+    const { fileId, freshContent, freshName } = pendingCloseRequest;
+    closeConfirmDialog();
+
+    const file = state.openFiles.find((item) => item.id === fileId);
+    if (!file) {
+      return;
+    }
+
+    applyReloadToFile(file, freshContent, freshName);
   }
 
   function selectOpenFile(fileId: string) {
@@ -489,6 +586,11 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
 
     if (index < 0) {
       return;
+    }
+
+    const closingFile = state.openFiles[index];
+    if (closingFile.nativePath && !isPathStillOpenElsewhere(closingFile.nativePath, fileId)) {
+      unwatchPath(closingFile.nativePath);
     }
 
     state.openFiles.splice(index, 1);
@@ -577,6 +679,8 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     discardPendingClose,
     saveAndClosePendingFile,
     openConfirmDialog,
-    closeConfirmDialog
+    closeConfirmDialog,
+    handleExternalChange,
+    applyPendingReload
   };
 }

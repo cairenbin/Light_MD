@@ -363,6 +363,7 @@ editor.value = state.content;
 filesController.resetEditorHistory();
 void setupMenuListener();
 void setupFileDropListener();
+void setupExternalChangeListener();
 void syncRecentMenu();
 render();
 persistDraft();
@@ -496,12 +497,20 @@ app.addEventListener("click", async (event) => {
   }
 
   if (action === "confirm-close-discard") {
-    filesController.discardPendingClose();
+    if (pendingCloseRequest?.kind === "reload") {
+      filesController.closeConfirmDialog();
+    } else {
+      filesController.discardPendingClose();
+    }
     return;
   }
 
   if (action === "confirm-close-save") {
-    await filesController.saveAndClosePendingFile();
+    if (pendingCloseRequest?.kind === "reload") {
+      filesController.applyPendingReload();
+    } else {
+      await filesController.saveAndClosePendingFile();
+    }
     return;
   }
 
@@ -700,10 +709,11 @@ function renderLocale() {
   drawerSectionTitle.textContent = t("drawer.openDocuments");
   drawerNoteTitle.textContent = t("drawer.shortcuts");
   autocompleteController.renderLabel();
-  confirmDialogTitle.textContent = t("dialog.close.title");
+  const reloadDialog = pendingCloseRequest?.kind === "reload";
+  confirmDialogTitle.textContent = t(reloadDialog ? "dialog.reload.title" : "dialog.close.title");
   confirmCloseCancelButton.textContent = t("dialog.cancel");
-  confirmCloseDiscardButton.textContent = t("dialog.discard");
-  confirmCloseSaveButton.textContent = t("dialog.save");
+  confirmCloseDiscardButton.textContent = t(reloadDialog ? "dialog.reload.keep" : "dialog.discard");
+  confirmCloseSaveButton.textContent = t(reloadDialog ? "dialog.reload.confirm" : "dialog.save");
 }
 
 function renderMode() {
@@ -891,6 +901,18 @@ async function setupFileDropListener() {
       }
       await filesController.openPath(path);
     }
+  });
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      unlisten();
+    });
+  }
+}
+
+async function setupExternalChangeListener() {
+  const unlisten = await listen<{ path: string }>("external-file-changed", async (event) => {
+    await filesController.handleExternalChange(event.payload.path);
   });
 
   if (import.meta.hot) {

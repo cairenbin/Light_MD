@@ -32,6 +32,10 @@ export type TranslationKey =
   | "autocomplete.title"
   | "dialog.close.title"
   | "dialog.close.message"
+  | "dialog.reload.title"
+  | "dialog.reload.message"
+  | "dialog.reload.confirm"
+  | "dialog.reload.keep"
   | "dialog.cancel"
   | "dialog.discard"
   | "dialog.save"
@@ -51,6 +55,7 @@ export type TranslationKey =
   | "state.draftSaved"
   | "state.unsaved"
   | "state.saved"
+  | "state.reloaded"
   | "state.openFailed"
   | "state.saveFailed"
   | "stats.words"
@@ -91,6 +96,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "autocomplete.title": "Markdown Syntax",
     "dialog.close.title": "Save changes before closing?",
     "dialog.close.message": '"{name}" has unsaved changes. Save before closing?',
+    "dialog.reload.title": "File changed on disk",
+    "dialog.reload.message": '"{name}" was modified externally. Reload and discard your unsaved changes?',
+    "dialog.reload.confirm": "Reload",
+    "dialog.reload.keep": "Keep mine",
     "dialog.cancel": "Cancel",
     "dialog.discard": "Don't Save",
     "dialog.save": "Save",
@@ -110,6 +119,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.draftSaved": "Draft saved locally",
     "state.unsaved": "Unsaved changes",
     "state.saved": "Saved",
+    "state.reloaded": "Reloaded from disk",
     "state.openFailed": "Could not open file",
     "state.saveFailed": "Could not save file",
     "stats.words": "words",
@@ -147,6 +157,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "autocomplete.title": "Markdown 语法",
     "dialog.close.title": "关闭前保存更改？",
     "dialog.close.message": "“{name}” 有未保存更改，是否先保存？",
+    "dialog.reload.title": "文件已在外部修改",
+    "dialog.reload.message": "“{name}” 在外部被修改。是否重新载入并丢弃当前未保存的更改？",
+    "dialog.reload.confirm": "重新载入",
+    "dialog.reload.keep": "保留当前",
     "dialog.cancel": "取消",
     "dialog.discard": "不保存",
     "dialog.save": "保存",
@@ -166,6 +180,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.draftSaved": "草稿已保存到本地",
     "state.unsaved": "有未保存更改",
     "state.saved": "已保存",
+    "state.reloaded": "已从磁盘重新载入",
     "state.openFailed": "打开文件失败",
     "state.saveFailed": "保存文件失败",
     "stats.words": "词",
@@ -203,6 +218,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "autocomplete.title": "Markdown 構文",
     "dialog.close.title": "閉じる前に保存しますか？",
     "dialog.close.message": "「{name}」に未保存の変更があります。保存して閉じますか？",
+    "dialog.reload.title": "ファイルが外部で変更されました",
+    "dialog.reload.message": "「{name}」は外部で変更されました。未保存の変更を破棄して再読み込みしますか？",
+    "dialog.reload.confirm": "再読み込み",
+    "dialog.reload.keep": "現状を維持",
     "dialog.cancel": "キャンセル",
     "dialog.discard": "保存しない",
     "dialog.save": "保存",
@@ -222,6 +241,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.draftSaved": "下書きをローカルに保存しました",
     "state.unsaved": "未保存の変更",
     "state.saved": "保存済み",
+    "state.reloaded": "ディスクから再読み込みしました",
     "state.openFailed": "ファイルを開けませんでした",
     "state.saveFailed": "ファイルを保存できませんでした",
     "stats.words": "語",
