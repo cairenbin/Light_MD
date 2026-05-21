@@ -92,6 +92,62 @@ import {
   state,
   undoHistoryStack
 } from "./state";
+import {
+  autocompleteList,
+  autocompletePanel,
+  autocompleteTitle,
+  charStat,
+  confirmCloseCancelButton,
+  confirmCloseDiscardButton,
+  confirmCloseSaveButton,
+  confirmDialogMessage,
+  confirmDialogTitle,
+  dialogBackdrop,
+  documentCount,
+  documentList,
+  drawerNoteTitle,
+  drawerSectionTitle,
+  editor,
+  fileActionButtons,
+  findCloseButton,
+  findInput,
+  findMatchCaseButton,
+  findMatchWordButton,
+  findNextButton,
+  findPanel,
+  findPrevButton,
+  findReplaceAllButton,
+  findReplaceButton,
+  findStatus,
+  findToggleReplaceButton,
+  fontDecreaseButton,
+  fontIncreaseButton,
+  fontSizeLabel,
+  formattingButtons,
+  initDom,
+  insertMenu,
+  insertMenuButton,
+  languageSelect,
+  lineStat,
+  mainArea,
+  modeButtons,
+  preview,
+  replaceInput,
+  replaceRow,
+  saveState,
+  settingsFieldLabels,
+  settingsGroupTitles,
+  settingsMenu,
+  settingsMenuButton,
+  shortcutCopy,
+  shortcutSelect,
+  sidebarToggle,
+  themeOptionButtons,
+  titleInput,
+  topbar,
+  wordStat,
+  workspace
+} from "./dom";
 
 marked.use({
   gfm: true,
@@ -650,70 +706,7 @@ app.innerHTML = `
   </main>
 `;
 
-const appRoot = app;
-const titleInput = requireElement<HTMLInputElement>(".title-input");
-const saveState = requireElement<HTMLSpanElement>(".save-state");
-const workspace = requireElement<HTMLElement>(".workspace");
-const topbar = requireElement<HTMLElement>(".topbar");
-const mainArea = requireElement<HTMLElement>(".main-area");
-const sidebarToggle = requireElement<HTMLButtonElement>(".sidebar-toggle");
-const documentList = requireElement<HTMLUListElement>(".document-list");
-const editor = requireElement<HTMLTextAreaElement>(".editor");
-const preview = requireElement<HTMLElement>(".preview");
-const autocompletePanel = requireElement<HTMLDivElement>(".autocomplete-panel");
-const autocompleteList = requireElement<HTMLUListElement>(".autocomplete-list");
-const formattingButtons = {
-  bold: requireElement<HTMLButtonElement>("[data-action='format-bold']"),
-  italic: requireElement<HTMLButtonElement>("[data-action='format-italic']"),
-  link: requireElement<HTMLButtonElement>("[data-action='format-link']"),
-  code: requireElement<HTMLButtonElement>("[data-action='format-code']"),
-  quote: requireElement<HTMLButtonElement>("[data-action='format-quote']")
-};
-const insertMenuButton = requireElement<HTMLButtonElement>(".menu-button");
-const insertMenu = requireElement<HTMLDivElement>(".insert-menu");
-const settingsMenuButton = requireElement<HTMLButtonElement>(".settings-button");
-const settingsMenu = requireElement<HTMLDivElement>(".settings-menu");
-const languageSelect = requireElement<HTMLSelectElement>(".settings-language-select");
-const wordStat = requireElement<HTMLSpanElement>(".words");
-const charStat = requireElement<HTMLSpanElement>(".characters");
-const lineStat = requireElement<HTMLSpanElement>(".lines");
-const themeOptionButtons = Array.from(app.querySelectorAll<HTMLButtonElement>("[data-action='set-theme']"));
-const fontDecreaseButton = requireElement<HTMLButtonElement>("[data-action='font-decrease']");
-const fontIncreaseButton = requireElement<HTMLButtonElement>("[data-action='font-increase']");
-const fontSizeLabel = requireElement<HTMLSpanElement>(".font-size-label");
-const shortcutSelect = requireElement<HTMLSelectElement>(".settings-shortcut-select");
-const documentCount = requireElement<HTMLSpanElement>(".drawer-section-count");
-const shortcutCopy = requireElement<HTMLParagraphElement>(".shortcut-copy");
-const dialogBackdrop = requireElement<HTMLDivElement>(".dialog-backdrop");
-const confirmDialogMessage = requireElement<HTMLParagraphElement>(".confirm-dialog-message");
-const confirmCloseSaveButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-save']");
-const modeButtons = Array.from(app.querySelectorAll<HTMLButtonElement>("[data-mode]"));
-const fileActionButtons = {
-  new: requireElement<HTMLButtonElement>("[data-action='new']"),
-  open: requireElement<HTMLButtonElement>("[data-action='open']"),
-  save: requireElement<HTMLButtonElement>("[data-action='save']")
-};
-const settingsGroupTitles = Array.from(app.querySelectorAll<HTMLHeadingElement>(".settings-group-title"));
-const settingsFieldLabels = Array.from(app.querySelectorAll<HTMLSpanElement>(".settings-field-label"));
-const drawerSectionTitle = requireElement<HTMLSpanElement>(".drawer-section-title");
-const drawerNoteTitle = requireElement<HTMLSpanElement>(".drawer-note-title");
-const autocompleteTitle = requireElement<HTMLDivElement>(".autocomplete-title");
-const confirmDialogTitle = requireElement<HTMLHeadingElement>(".confirm-dialog-title");
-const confirmCloseCancelButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-cancel']");
-const confirmCloseDiscardButton = requireElement<HTMLButtonElement>("[data-action='confirm-close-discard']");
-const findPanel = requireElement<HTMLDivElement>(".find-panel");
-const findInput = requireElement<HTMLInputElement>(".find-input");
-const replaceInput = requireElement<HTMLInputElement>(".replace-input");
-const findStatus = requireElement<HTMLSpanElement>(".find-status");
-const replaceRow = requireElement<HTMLDivElement>(".replace-row");
-const findMatchCaseButton = requireElement<HTMLButtonElement>("[data-action='find-match-case']");
-const findMatchWordButton = requireElement<HTMLButtonElement>("[data-action='find-match-word']");
-const findPrevButton = requireElement<HTMLButtonElement>("[data-action='find-prev']");
-const findNextButton = requireElement<HTMLButtonElement>("[data-action='find-next']");
-const findCloseButton = requireElement<HTMLButtonElement>("[data-action='find-close']");
-const findToggleReplaceButton = requireElement<HTMLButtonElement>("[data-action='find-toggle-replace']");
-const findReplaceButton = requireElement<HTMLButtonElement>("[data-action='find-replace']");
-const findReplaceAllButton = requireElement<HTMLButtonElement>("[data-action='find-replace-all']");
+initDom(app);
 
 editor.value = state.content;
 resetEditorHistory();
@@ -1251,16 +1244,6 @@ function render() {
     syncActiveScroll();
     updateAutocompletePosition();
   });
-}
-
-function requireElement<T extends HTMLElement>(selector: string): T {
-  const element = appRoot.querySelector<T>(selector);
-
-  if (!element) {
-    throw new Error(`Required element was not found: ${selector}`);
-  }
-
-  return element;
 }
 
 function renderStats() {
