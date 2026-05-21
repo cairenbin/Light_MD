@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { marked } from "marked";
 import "./styles.css";
 
@@ -361,6 +362,7 @@ insertController.bindListeners();
 editor.value = state.content;
 filesController.resetEditorHistory();
 void setupMenuListener();
+void setupFileDropListener();
 void syncRecentMenu();
 render();
 persistDraft();
@@ -857,6 +859,37 @@ async function setupMenuListener() {
         break;
       default:
         break;
+    }
+  });
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      unlisten();
+    });
+  }
+}
+
+const ACCEPTED_DROP_EXTENSIONS = new Set(["md", "markdown", "txt"]);
+
+function hasAcceptedExtension(path: string): boolean {
+  const lastDot = path.lastIndexOf(".");
+  if (lastDot < 0) {
+    return false;
+  }
+  return ACCEPTED_DROP_EXTENSIONS.has(path.slice(lastDot + 1).toLowerCase());
+}
+
+async function setupFileDropListener() {
+  const unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
+    if (event.payload.type !== "drop") {
+      return;
+    }
+
+    for (const path of event.payload.paths) {
+      if (!hasAcceptedExtension(path)) {
+        continue;
+      }
+      await filesController.openPath(path);
     }
   });
 

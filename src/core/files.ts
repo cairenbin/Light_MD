@@ -55,6 +55,7 @@ export interface FilesController {
 
   createNewDocument: () => void;
   openDocument: () => Promise<void>;
+  openPath: (path: string) => Promise<void>;
   openRecentDocument: (index: number) => Promise<void>;
   saveDocument: () => Promise<boolean | undefined>;
   saveDocumentAs: () => Promise<boolean | undefined>;
@@ -353,6 +354,24 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     }
   }
 
+  async function openPath(path: string) {
+    try {
+      const file = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", {
+        path
+      });
+
+      if (!file) {
+        deps.renderSaveState(t("state.openFailed"));
+        return;
+      }
+
+      loadNativeFile(file);
+    } catch (error) {
+      console.error(error);
+      deps.renderSaveState(t("state.openFailed"));
+    }
+  }
+
   async function openRecentDocument(index: number) {
     const recentPath = recentFiles[index];
 
@@ -545,6 +564,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     redoEditorHistory,
     createNewDocument,
     openDocument,
+    openPath,
     openRecentDocument,
     saveDocument,
     saveDocumentAs,
