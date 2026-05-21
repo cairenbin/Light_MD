@@ -1,4 +1,3 @@
-import { RECENT_FILES_KEY } from "./constants";
 import type {
   EditorAutocompleteState,
   EditorHistorySnapshot,
@@ -6,7 +5,6 @@ import type {
   FindReplaceState,
   PendingCloseRequest
 } from "./types";
-import { parseSavedRecentFiles } from "./utils/storage";
 
 export const state: EditorState = {
   content: "",
@@ -46,7 +44,7 @@ export const autocompleteState: EditorAutocompleteState = {
 export const undoHistoryStack: EditorHistorySnapshot[] = [];
 export const redoHistoryStack: EditorHistorySnapshot[] = [];
 
-export const recentFiles: string[] = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
+export const recentFiles: string[] = [];
 
 export const globalEventListeners: Array<{
   target: Window | Document;

@@ -6,7 +6,6 @@ import "./styles.css";
 
 import type {
   AutocompleteShortcutOption,
-  DraftSession,
   EditorAutocompleteContext,
   EditorAutocompleteItem,
   EditorHistorySnapshot,
@@ -21,23 +20,11 @@ import type {
   ViewMode
 } from "./types";
 import {
-  AUTOCOMPLETE_SHORTCUT_KEY,
   DEFAULT_ZOOM_PERCENT,
-  DRAFT_KEY,
-  DRAFT_SESSION_KEY,
-  DRAFT_SESSION_VERSION,
-  LOCALE_KEY,
   MAX_HISTORY_STACK,
-  MAX_RECENT_FILES,
   MAX_ZOOM_PERCENT,
   MIN_ZOOM_PERCENT,
-  RECENT_FILES_KEY,
-  SIDEBAR_KEY,
-  THEME_KEY,
-  TITLE_KEY,
-  ZOOM_KEY,
-  ZOOM_STEP,
-  starterMarkdown
+  ZOOM_STEP
 } from "./constants";
 import { formatMessage, isSupportedLocale, translate, type TranslationKey } from "./i18n/dictionaries";
 import { buildMarkdownContinuation } from "./editor/continuation";
@@ -62,11 +49,20 @@ import { documentInitial, formatPathForDisplay, normalizeFileName } from "./util
 import { isMacPlatform } from "./utils/platform";
 import {
   clampZoom,
-  parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl,
-  parseSavedDraftSession,
-  parseSavedLocale,
-  parseSavedZoom
+  parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl
 } from "./utils/storage";
+import {
+  loadInitialSession,
+  persistAutocompleteShortcut,
+  persistDraft,
+  persistLocale,
+  persistSidebar,
+  persistTheme,
+  persistZoom,
+  pushRecentFile,
+  removeRecentFile,
+  syncRecentMenu
+} from "./storage/session";
 import {
   activeScrollSource,
   autocompleteState,
@@ -521,33 +517,9 @@ if (!app) {
   throw new Error("App root was not found.");
 }
 
-const savedSession = parseSavedDraftSession(localStorage.getItem(DRAFT_SESSION_KEY));
-const savedDraft = localStorage.getItem(DRAFT_KEY);
-const savedTitle = localStorage.getItem(TITLE_KEY);
-const savedTheme = localStorage.getItem(THEME_KEY);
-const savedZoom = localStorage.getItem(ZOOM_KEY);
-const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY);
-const savedLocale = localStorage.getItem(LOCALE_KEY);
-const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
-const initialActiveFile =
-  initialSession.openFiles.find((file) => file.id === initialSession.activeFileId) ?? initialSession.openFiles[0];
-const initialAutocompleteShortcutId = parseSavedAutocompleteShortcutId(savedAutocompleteShortcut);
-const initialLocale = parseSavedLocale(savedLocale);
-
-Object.assign(state, {
-  content: initialActiveFile.content,
-  fileName: initialActiveFile.name,
-  nativePath: initialActiveFile.nativePath,
-  isDirty: initialActiveFile.isDirty,
-  mode: "split",
-  theme: savedTheme === "dark" ? "dark" : "light",
-  isSidebarOpen: localStorage.getItem(SIDEBAR_KEY) !== "false",
-  activeFileId: initialActiveFile.id,
-  zoomPercent: parseSavedZoom(savedZoom),
-  openFiles: initialSession.openFiles,
-  autocompleteShortcutId: initialAutocompleteShortcutId,
-  locale: initialLocale
-} satisfies EditorState);
+const initial = loadInitialSession(getAvailableAutocompleteShortcutOptions());
+Object.assign(state, initial.state satisfies EditorState);
+recentFiles.push(...initial.recentFiles);
 
 app.innerHTML = `
   <main class="shell">
@@ -1438,7 +1410,7 @@ function renderShortcutOptions() {
 
   if (!availableOptions.some((option) => option.id === state.autocompleteShortcutId)) {
     state.autocompleteShortcutId = parseSavedAutocompleteShortcutId(null);
-    localStorage.setItem(AUTOCOMPLETE_SHORTCUT_KEY, state.autocompleteShortcutId);
+    persistAutocompleteShortcut(state.autocompleteShortcutId);
   }
 
   const shortcutOptionsMarkup = availableOptions
@@ -1621,7 +1593,7 @@ function setTheme(theme: ThemeMode) {
   }
 
   state.theme = theme;
-  localStorage.setItem(THEME_KEY, state.theme);
+  persistTheme(state.theme);
   renderTheme();
 }
 
@@ -1634,7 +1606,7 @@ function renderZoom() {
 
 function changeZoom(delta: number) {
   state.zoomPercent = clampZoom(state.zoomPercent + delta * ZOOM_STEP);
-  localStorage.setItem(ZOOM_KEY, String(state.zoomPercent));
+  persistZoom(state.zoomPercent);
   renderZoom();
   requestAnimationFrame(() => {
     syncActiveScroll();
@@ -1643,7 +1615,7 @@ function changeZoom(delta: number) {
 
 function resetZoom() {
   state.zoomPercent = DEFAULT_ZOOM_PERCENT;
-  localStorage.setItem(ZOOM_KEY, String(state.zoomPercent));
+  persistZoom(state.zoomPercent);
   renderZoom();
   requestAnimationFrame(() => {
     syncActiveScroll();
@@ -1760,83 +1732,12 @@ function loadNativeFile(file: TauriMarkdownFile) {
   render();
 }
 
-function persistDraft() {
-  const openFiles = state.openFiles.map((file) => {
-    if (file.id !== state.activeFileId) {
-      return {
-        ...file
-      };
-    }
-
-    return {
-      ...file,
-      name: state.fileName,
-      content: state.content,
-      nativePath: state.nativePath,
-      isDirty: state.isDirty
-    };
-  });
-
-  const session: DraftSession = {
-    version: DRAFT_SESSION_VERSION,
-    activeFileId: state.activeFileId,
-    openFiles
-  };
-
-  localStorage.setItem(DRAFT_SESSION_KEY, JSON.stringify(session));
-  localStorage.setItem(DRAFT_KEY, state.content);
-  localStorage.setItem(TITLE_KEY, state.fileName);
-}
-
 function markSaved(message = t("state.saved")) {
   state.isDirty = false;
   syncActiveFile();
   persistDraft();
   renderDocuments();
   renderSaveState(message);
-}
-
-function pushRecentFile(path: string) {
-  const trimmed = path.trim();
-
-  if (!trimmed) {
-    return;
-  }
-
-  const existingIndex = recentFiles.findIndex((entry) => entry === trimmed);
-
-  if (existingIndex >= 0) {
-    recentFiles.splice(existingIndex, 1);
-  }
-
-  recentFiles.unshift(trimmed);
-
-  if (recentFiles.length > MAX_RECENT_FILES) {
-    recentFiles.splice(MAX_RECENT_FILES);
-  }
-
-  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(recentFiles));
-  void syncRecentMenu();
-}
-
-function removeRecentFile(path: string) {
-  const index = recentFiles.findIndex((entry) => entry === path);
-
-  if (index < 0) {
-    return;
-  }
-
-  recentFiles.splice(index, 1);
-  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(recentFiles));
-  void syncRecentMenu();
-}
-
-async function syncRecentMenu() {
-  try {
-    await invoke("update_recent_menu", { paths: recentFiles });
-  } catch (error) {
-    console.error("Could not update recent menu.", error);
-  }
 }
 
 function createOpenFile(name: string, content: string, isDirty: boolean, nativePath: string | null = null): OpenFile {
@@ -1981,7 +1882,7 @@ async function saveAndClosePendingFile() {
 
 function toggleSidebar() {
   state.isSidebarOpen = !state.isSidebarOpen;
-  localStorage.setItem(SIDEBAR_KEY, String(state.isSidebarOpen));
+  persistSidebar(state.isSidebarOpen);
   renderDocuments();
 }
 
@@ -2738,7 +2639,7 @@ function setAutocompleteShortcut(nextId: string) {
   }
 
   state.autocompleteShortcutId = option.id;
-  localStorage.setItem(AUTOCOMPLETE_SHORTCUT_KEY, option.id);
+  persistAutocompleteShortcut(option.id);
   renderSettingsMenu();
   renderShortcuts();
 }
@@ -2749,7 +2650,7 @@ function setLocale(nextLocale: string) {
   }
 
   state.locale = nextLocale;
-  localStorage.setItem(LOCALE_KEY, state.locale);
+  persistLocale(state.locale);
   render();
 }
 
@@ -2927,28 +2828,6 @@ function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
     persistDraft();
     render();
   }
-}
-
-function buildInitialDraftSession(
-  savedSession: DraftSession | null,
-  savedTitle: string | null,
-  savedDraft: string | null
-): DraftSession {
-  if (savedSession && savedSession.openFiles.length > 0) {
-    return savedSession;
-  }
-
-  const file = createOpenFile(
-    normalizeFileName(savedTitle ?? "Untitled.md"),
-    savedDraft ?? starterMarkdown,
-    Boolean(savedDraft)
-  );
-
-  return {
-    version: DRAFT_SESSION_VERSION,
-    activeFileId: file.id,
-    openFiles: [file]
-  };
 }
 
 function scheduleScrollSync(source: HTMLElement, target: HTMLElement, sourceName: "editor" | "preview") {
