@@ -1,8 +1,12 @@
+mod watcher;
+
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::Emitter;
+use tauri::{Emitter, Manager, State};
+use watcher::WatcherState;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
 
@@ -63,6 +67,11 @@ struct SavedMarkdownFile {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let watcher_state = watcher::init(app.handle().clone());
+            app.manage(watcher_state);
+            Ok(())
+        })
         .menu(build_app_menu)
         .on_menu_event(|app, event| {
             let menu_id = event.id().as_ref();
@@ -107,7 +116,9 @@ pub fn run() {
             open_markdown_file,
             open_markdown_file_from_path,
             update_recent_menu,
-            save_markdown_file
+            save_markdown_file,
+            watch_file,
+            unwatch_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
@@ -361,6 +372,7 @@ fn save_markdown_file(
     path: Option<String>,
     suggested_name: String,
     content: String,
+    watcher_state: State<Arc<WatcherState>>,
 ) -> Result<Option<SavedMarkdownFile>, String> {
     let path = match path {
         Some(path) if !path.trim().is_empty() => {
@@ -383,10 +395,28 @@ fn save_markdown_file(
 
     fs::write(&path, content).map_err(|error| error.to_string())?;
 
+    watcher::note_self_write(&watcher_state, &path);
+
     Ok(Some(SavedMarkdownFile {
         name: file_name(&path),
         path: path.to_string_lossy().into_owned(),
     }))
+}
+
+#[tauri::command]
+fn watch_file(path: String, watcher_state: State<Arc<WatcherState>>) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Ok(());
+    }
+    watcher::watch(&watcher_state, &PathBuf::from(path))
+}
+
+#[tauri::command]
+fn unwatch_file(path: String, watcher_state: State<Arc<WatcherState>>) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Ok(());
+    }
+    watcher::unwatch(&watcher_state, &PathBuf::from(path))
 }
 
 fn read_markdown_file_from_path(path: PathBuf) -> Result<MarkdownFile, String> {
