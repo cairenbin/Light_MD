@@ -6,8 +6,6 @@ import "./styles.css";
 
 import type {
   AutocompleteShortcutOption,
-  EditorAutocompleteContext,
-  EditorAutocompleteItem,
   EditorHistorySnapshot,
   EditorSelectionEdit,
   EditorState,
@@ -20,8 +18,6 @@ import {
   MAX_HISTORY_STACK
 } from "./constants";
 import { formatMessage, translate, type TranslationKey } from "./i18n/dictionaries";
-import { buildMarkdownContinuation } from "./editor/continuation";
-import { autocompleteItemIds, editorAutocompleteItems } from "./editor/items";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
@@ -36,6 +32,7 @@ import {
   removeRecentFile,
   syncRecentMenu
 } from "./storage/session";
+import { createAutocompleteController } from "./ui/autocomplete";
 import { createFindController } from "./ui/find";
 import { createInsertController } from "./ui/insert-menu";
 import { createSettingsController } from "./ui/settings";
@@ -62,9 +59,6 @@ import {
   undoHistoryStack
 } from "./state";
 import {
-  autocompleteList,
-  autocompletePanel,
-  autocompleteTitle,
   charStat,
   confirmCloseCancelButton,
   confirmCloseDiscardButton,
@@ -339,12 +333,18 @@ app.innerHTML = `
 
 initDom(app);
 
+const autocompleteController = createAutocompleteController({
+  applyEditorEdit,
+  getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions
+});
+autocompleteController.bindListeners();
+
 const findController = createFindController({
   applyEditorEdit,
   syncTextFieldState,
   closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
   closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
-  closeAutocomplete
+  closeAutocomplete: () => autocompleteController.close()
 });
 findController.bindListeners();
 
@@ -352,7 +352,7 @@ const settingsController = createSettingsController({
   render,
   renderShortcutsDrawer: renderShortcuts,
   closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
-  closeAutocomplete,
+  closeAutocomplete: () => autocompleteController.close(),
   syncActiveScroll,
   getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions,
   parseSavedShortcutId: parseSavedAutocompleteShortcutId,
@@ -362,9 +362,9 @@ settingsController.bindListeners();
 
 const insertController = createInsertController({
   applyEditorEdit,
-  getEditorAutocompleteContext,
+  getEditorAutocompleteContext: () => autocompleteController.getEditorContext(),
   closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
-  closeAutocomplete,
+  closeAutocomplete: () => autocompleteController.close(),
   setMode
 });
 insertController.bindListeners();
@@ -378,7 +378,7 @@ persistDraft();
 
 const resizeListener = () => {
   insertController.updateMenuPosition();
-  updateAutocompletePosition();
+  autocompleteController.updatePosition();
 };
 window.addEventListener("resize", resizeListener);
 globalEventListeners.push({ target: window, type: "resize", listener: resizeListener });
@@ -390,17 +390,17 @@ editor.addEventListener("input", () => {
   persistDraft();
   syncActiveFile();
   render();
-  refreshAutocomplete(false);
+  autocompleteController.refresh(false);
 });
 
 editor.addEventListener("scroll", () => {
   if (programmaticScrollSource === "editor" || state.mode !== "split") {
-    updateAutocompletePosition();
+    autocompleteController.updatePosition();
     return;
   }
 
   scheduleScrollSync(editor, preview, "editor");
-  updateAutocompletePosition();
+  autocompleteController.updatePosition();
 });
 
 preview.addEventListener("scroll", () => {
@@ -412,76 +412,29 @@ preview.addEventListener("scroll", () => {
 });
 
 editor.addEventListener("keydown", (event) => {
-  if (handleAutocompleteKeyboard(event)) {
+  if (autocompleteController.handleKeydown(event)) {
     return;
   }
 
-  handleMarkdownContinuation(event);
+  autocompleteController.handleContinuation(event);
 });
 
 editor.addEventListener("click", () => {
-  refreshAutocomplete(false);
+  autocompleteController.refresh(false);
 });
 
 editor.addEventListener("keyup", (event) => {
   if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") {
-    refreshAutocomplete(autocompleteState.manual);
+    autocompleteController.refresh(autocompleteState.manual);
   }
 });
 
 editor.addEventListener("blur", () => {
   window.setTimeout(() => {
     if (document.activeElement !== editor) {
-      closeAutocomplete();
+      autocompleteController.close();
     }
   }, 120);
-});
-
-autocompletePanel.addEventListener("mousedown", (event) => {
-  event.preventDefault();
-});
-
-autocompleteList.addEventListener("click", (event) => {
-  const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-index]") : null;
-
-  if (!target) {
-    return;
-  }
-
-  const nextIndex = Number(target.dataset.index);
-
-  if (!Number.isInteger(nextIndex)) {
-    return;
-  }
-
-  applyAutocompleteItem(nextIndex);
-});
-
-autocompleteList.addEventListener("mousemove", (event) => {
-  const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-index]") : null;
-
-  if (!target) {
-    return;
-  }
-
-  const nextIndex = Number(target.dataset.index);
-
-  if (!Number.isInteger(nextIndex) || nextIndex === autocompleteState.activeIndex) {
-    return;
-  }
-
-  autocompleteState.interactionMode = "pointer";
-  autocompleteState.activeIndex = nextIndex;
-  renderAutocomplete();
-});
-
-autocompleteList.addEventListener("mouseleave", () => {
-  if (!autocompleteState.isOpen) {
-    return;
-  }
-
-  autocompleteState.interactionMode = "keyboard";
-  renderAutocomplete();
 });
 
 titleInput.addEventListener("input", () => {
@@ -697,10 +650,10 @@ function render() {
   settingsController.renderMenu();
   renderShortcuts();
   renderSaveState();
-  renderAutocomplete();
+  autocompleteController.renderPanel();
   requestAnimationFrame(() => {
     syncActiveScroll();
-    updateAutocompletePosition();
+    autocompleteController.updatePosition();
   });
 }
 
@@ -755,7 +708,7 @@ function renderLocale() {
 
   drawerSectionTitle.textContent = t("drawer.openDocuments");
   drawerNoteTitle.textContent = t("drawer.shortcuts");
-  autocompleteTitle.textContent = t("autocomplete.title");
+  autocompleteController.renderLabel();
   confirmDialogTitle.textContent = t("dialog.close.title");
   confirmCloseCancelButton.textContent = t("dialog.cancel");
   confirmCloseDiscardButton.textContent = t("dialog.discard");
@@ -770,7 +723,7 @@ function renderMode() {
   }
 
   if (state.mode === "preview") {
-    closeAutocomplete();
+    autocompleteController.close();
   }
 }
 
@@ -823,59 +776,6 @@ function renderShortcuts() {
   shortcutCopy.innerHTML = buildShortcutMarkup();
 }
 
-function renderAutocomplete() {
-  const canShow = autocompleteState.isOpen && autocompleteState.items.length > 0 && state.mode !== "preview";
-
-  autocompletePanel.classList.toggle("hidden", !canShow);
-  autocompletePanel.setAttribute("aria-hidden", String(!canShow));
-
-  if (!canShow) {
-    autocompleteList.innerHTML = "";
-    return;
-  }
-
-  autocompleteList.innerHTML = autocompleteState.items
-    .map((item, index) => {
-      const activeClass = index === autocompleteState.activeIndex ? " active" : "";
-      const pointerSelected =
-        autocompleteState.interactionMode === "pointer" && index === autocompleteState.activeIndex
-          ? ' data-pointer-selected="true"'
-          : "";
-
-      return `
-        <li>
-          <button class="autocomplete-item${activeClass}" data-index="${index}" type="button"${pointerSelected}>
-            <span class="autocomplete-copy">
-              <span class="autocomplete-label">${escapeHtml(item.label)}</span>
-              <span class="autocomplete-detail">${escapeHtml(item.detail)}</span>
-            </span>
-          </button>
-        </li>
-      `;
-    })
-    .join("");
-
-  autocompletePanel.style.top = `${autocompleteState.anchorTop}px`;
-  autocompletePanel.style.left = `${autocompleteState.anchorLeft}px`;
-  ensureAutocompleteItemVisible();
-}
-
-function ensureAutocompleteItemVisible() {
-  if (!autocompleteState.isOpen) {
-    return;
-  }
-
-  const activeItem = autocompleteList.querySelector<HTMLElement>(".autocomplete-item.active");
-
-  if (!activeItem) {
-    return;
-  }
-
-  activeItem.scrollIntoView({
-    block: "nearest"
-  });
-}
-
 function openConfirmDialog(message: string) {
   confirmDialogMessage.textContent = message;
   dialogBackdrop.classList.remove("hidden");
@@ -899,7 +799,7 @@ function createNewDocument() {
 
   state.openFiles.push(file);
   activateFile(file.id);
-  closeAutocomplete();
+  autocompleteController.close();
   render();
   editor.focus();
 }
@@ -1000,7 +900,7 @@ function loadNativeFile(file: TauriMarkdownFile) {
     activateFile(openFile.id);
   }
 
-  closeAutocomplete();
+  autocompleteController.close();
   render();
 }
 
@@ -1038,7 +938,7 @@ function activateFile(fileId: string) {
   editor.value = file.content;
   titleInput.value = file.name;
   resetEditorHistory();
-  closeAutocomplete();
+  autocompleteController.close();
   persistDraft();
 }
 
@@ -1156,293 +1056,6 @@ function toggleSidebar() {
   state.isSidebarOpen = !state.isSidebarOpen;
   persistSidebar(state.isSidebarOpen);
   renderDocuments();
-}
-
-function handleAutocompleteKeyboard(event: KeyboardEvent) {
-  const isManualTrigger = isAutocompleteTriggerEvent(event);
-
-  if (isManualTrigger) {
-    event.preventDefault();
-    refreshAutocomplete(true);
-    return true;
-  }
-
-  if (!autocompleteState.isOpen) {
-    return false;
-  }
-
-  if (event.key === "ArrowDown") {
-    event.preventDefault();
-    autocompleteState.interactionMode = "keyboard";
-    autocompleteState.activeIndex = (autocompleteState.activeIndex + 1) % autocompleteState.items.length;
-    renderAutocomplete();
-    return true;
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    autocompleteState.interactionMode = "keyboard";
-    autocompleteState.activeIndex =
-      (autocompleteState.activeIndex - 1 + autocompleteState.items.length) % autocompleteState.items.length;
-    renderAutocomplete();
-    return true;
-  }
-
-  if (event.key === "Enter" || event.key === "Tab") {
-    event.preventDefault();
-    applyAutocompleteItem(autocompleteState.activeIndex);
-    return true;
-  }
-
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeAutocomplete();
-    return true;
-  }
-
-  return false;
-}
-
-function isAutocompleteTriggerEvent(event: KeyboardEvent) {
-  const shortcut =
-    getAvailableAutocompleteShortcutOptions().find((option) => option.id === state.autocompleteShortcutId) ??
-    getAvailableAutocompleteShortcutOptions()[0];
-
-  return (
-    event.code === shortcut.code &&
-    event.shiftKey === shortcut.shift &&
-    event.ctrlKey === shortcut.ctrl &&
-    event.altKey === shortcut.alt &&
-    event.metaKey === shortcut.meta
-  );
-}
-
-function handleMarkdownContinuation(event: KeyboardEvent) {
-  if (event.key !== "Enter" || event.altKey || event.ctrlKey || event.metaKey) {
-    return false;
-  }
-
-  const context = getEditorAutocompleteContext();
-  const nextText = buildMarkdownContinuation(context.currentLine);
-
-  if (nextText === null) {
-    return false;
-  }
-
-  event.preventDefault();
-  applyEditorEdit({
-    start: context.selectionStart,
-    end: context.selectionEnd,
-    text: `\n${nextText}`
-  });
-  closeAutocomplete();
-  return true;
-}
-
-function refreshAutocomplete(manual: boolean) {
-  if (state.mode === "preview") {
-    closeAutocomplete();
-    return;
-  }
-
-  const context = getEditorAutocompleteContext();
-  const items = getAutocompleteItems(context, manual);
-
-  if (items.length === 0) {
-    closeAutocomplete();
-    return;
-  }
-
-  if (!manual && !hasAutocompleteTrigger(context)) {
-    closeAutocomplete();
-    return;
-  }
-
-  autocompleteState.isOpen = true;
-  autocompleteState.items = items;
-  autocompleteState.manual = manual;
-  autocompleteState.interactionMode = "keyboard";
-  autocompleteState.activeIndex = Math.min(autocompleteState.activeIndex, items.length - 1);
-  updateAutocompletePosition();
-}
-
-function closeAutocomplete() {
-  autocompleteState.isOpen = false;
-  autocompleteState.items = [];
-  autocompleteState.activeIndex = 0;
-  autocompleteState.manual = false;
-  autocompleteState.interactionMode = "keyboard";
-  renderAutocomplete();
-}
-
-function getAutocompleteItems(context: EditorAutocompleteContext, manual: boolean) {
-  const query = normalizeAutocompleteQuery(context.token);
-  const sourceItems = editorAutocompleteItems.filter((item) => autocompleteItemIds.has(item.id));
-
-  if (manual) {
-    return sourceItems.filter((item) => matchesAutocompleteQuery(item, query));
-  }
-
-  return sourceItems.filter((item) => item.autoPrefixes.some((prefix) => matchesAutoPrefix(context, prefix)));
-}
-
-function hasAutocompleteTrigger(context: EditorAutocompleteContext) {
-  return editorAutocompleteItems
-    .filter((item) => autocompleteItemIds.has(item.id))
-    .some((item) => item.autoPrefixes.some((prefix) => matchesAutoPrefix(context, prefix)));
-}
-
-function matchesAutocompleteQuery(item: EditorAutocompleteItem, query: string) {
-  if (!query) {
-    return true;
-  }
-
-  const haystack = [item.label, item.detail, ...item.keywords].join(" ").toLowerCase();
-  return haystack.includes(query);
-}
-
-function normalizeAutocompleteQuery(query: string) {
-  return query.replace(/^[^\p{L}\p{N}]+/u, "").toLowerCase();
-}
-
-function matchesAutoPrefix(context: EditorAutocompleteContext, prefix: string) {
-  if (prefix.length === 0) {
-    return false;
-  }
-
-  if (context.trimmedLine === prefix || context.token === prefix) {
-    return true;
-  }
-
-  if (!prefix.includes(" ")) {
-    return false;
-  }
-
-  return context.beforeLineCursor.trimEnd().endsWith(prefix);
-}
-
-function applyAutocompleteItem(index: number) {
-  const item = autocompleteState.items[index];
-
-  if (!item) {
-    return;
-  }
-
-  const edit = item.buildEdit(getEditorAutocompleteContext());
-  applyEditorEdit(edit);
-  closeAutocomplete();
-}
-
-function applyEditorEdit(edit: EditorSelectionEdit) {
-  const nextSelectionStart = edit.selectionStart ?? edit.start + edit.text.length;
-  const nextSelectionEnd = edit.selectionEnd ?? nextSelectionStart;
-
-  editor.focus();
-  editor.setSelectionRange(edit.start, edit.end);
-  editor.setRangeText(edit.text, edit.start, edit.end, "end");
-  editor.setSelectionRange(nextSelectionStart, nextSelectionEnd);
-  syncTextFieldState(editor);
-}
-
-function getEditorAutocompleteContext(): EditorAutocompleteContext {
-  const value = editor.value;
-  const selectionStart = editor.selectionStart ?? 0;
-  const selectionEnd = editor.selectionEnd ?? selectionStart;
-  const selectedText = value.slice(selectionStart, selectionEnd);
-  const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
-  const nextLineBreak = value.indexOf("\n", selectionEnd);
-  const lineEnd = nextLineBreak === -1 ? value.length : nextLineBreak;
-  const currentLine = value.slice(lineStart, lineEnd);
-  const beforeLineCursor = value.slice(lineStart, selectionStart);
-  const afterLineCursor = value.slice(selectionEnd, lineEnd);
-  const trimmedLine = beforeLineCursor.trim();
-  const tokenMatch = beforeLineCursor.match(/([^\s]+)$/);
-  const token = tokenMatch?.[1] ?? "";
-  const tokenStart = tokenMatch ? selectionStart - token.length : selectionStart;
-
-  return {
-    value,
-    selectionStart,
-    selectionEnd,
-    selectedText,
-    lineStart,
-    lineEnd,
-    currentLine,
-    beforeLineCursor,
-    afterLineCursor,
-    trimmedLine,
-    token,
-    tokenStart,
-    tokenEnd: selectionStart
-  };
-}
-
-function updateAutocompletePosition() {
-  if (!autocompleteState.isOpen) {
-    return;
-  }
-
-  const { top, left } = getEditorCaretPosition();
-  const editorRect = editor.getBoundingClientRect();
-  const panelWidth = 320;
-  const panelHeight = 260;
-  const viewportPadding = 16;
-
-  autocompleteState.anchorTop = Math.min(top + 18, window.innerHeight - panelHeight - viewportPadding);
-  autocompleteState.anchorLeft = Math.min(left, Math.max(viewportPadding, editorRect.right - panelWidth - 12));
-
-  renderAutocomplete();
-}
-
-function getEditorCaretPosition() {
-  const mirror = document.createElement("div");
-  const marker = document.createElement("span");
-  const editorStyle = window.getComputedStyle(editor);
-  const editorRect = editor.getBoundingClientRect();
-  const propertiesToCopy = [
-    "boxSizing",
-    "width",
-    "paddingTop",
-    "paddingRight",
-    "paddingBottom",
-    "paddingLeft",
-    "borderTopWidth",
-    "borderRightWidth",
-    "borderBottomWidth",
-    "borderLeftWidth",
-    "fontFamily",
-    "fontSize",
-    "fontWeight",
-    "fontStyle",
-    "lineHeight",
-    "letterSpacing",
-    "textTransform",
-    "textAlign"
-  ] as const;
-
-  mirror.style.position = "fixed";
-  mirror.style.top = "0";
-  mirror.style.left = "-9999px";
-  mirror.style.visibility = "hidden";
-  mirror.style.whiteSpace = "pre-wrap";
-  mirror.style.wordBreak = "break-word";
-  mirror.style.overflowWrap = "break-word";
-
-  for (const property of propertiesToCopy) {
-    mirror.style[property] = editorStyle[property];
-  }
-
-  mirror.textContent = editor.value.slice(0, editor.selectionStart ?? 0);
-  marker.textContent = editor.value.slice(editor.selectionStart ?? 0, (editor.selectionStart ?? 0) + 1) || " ";
-  mirror.append(marker);
-  document.body.append(mirror);
-
-  const top = editorRect.top + marker.offsetTop - editor.scrollTop;
-  const left = editorRect.left + marker.offsetLeft - editor.scrollLeft;
-
-  mirror.remove();
-
-  return { top, left };
 }
 
 async function setupMenuListener() {
@@ -1686,6 +1299,17 @@ function redoEditorHistory() {
 
   applyEditorHistorySnapshot(nextSnapshot);
   return true;
+}
+
+function applyEditorEdit(edit: EditorSelectionEdit) {
+  const nextSelectionStart = edit.selectionStart ?? edit.start + edit.text.length;
+  const nextSelectionEnd = edit.selectionEnd ?? nextSelectionStart;
+
+  editor.focus();
+  editor.setSelectionRange(edit.start, edit.end);
+  editor.setRangeText(edit.text, edit.start, edit.end, "end");
+  editor.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+  syncTextFieldState(editor);
 }
 
 function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
