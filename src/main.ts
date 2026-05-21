@@ -12,21 +12,15 @@ import type {
   EditorSelectionEdit,
   EditorState,
   InsertMenuItem,
-  Locale,
   OpenFile,
   TauriMarkdownFile,
   TauriSavedMarkdownFile,
-  ThemeMode,
   ViewMode
 } from "./types";
 import {
-  DEFAULT_ZOOM_PERCENT,
-  MAX_HISTORY_STACK,
-  MAX_ZOOM_PERCENT,
-  MIN_ZOOM_PERCENT,
-  ZOOM_STEP
+  MAX_HISTORY_STACK
 } from "./constants";
-import { formatMessage, isSupportedLocale, translate, type TranslationKey } from "./i18n/dictionaries";
+import { formatMessage, translate, type TranslationKey } from "./i18n/dictionaries";
 import { buildMarkdownContinuation } from "./editor/continuation";
 import {
   buildAlignedTableEdit,
@@ -47,22 +41,18 @@ import { escapeAttribute, escapeHtml } from "./utils/html";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
 import {
-  clampZoom,
   parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl
 } from "./utils/storage";
 import {
   loadInitialSession,
-  persistAutocompleteShortcut,
   persistDraft,
-  persistLocale,
   persistSidebar,
-  persistTheme,
-  persistZoom,
   pushRecentFile,
   removeRecentFile,
   syncRecentMenu
 } from "./storage/session";
 import { createFindController } from "./ui/find";
+import { createSettingsController } from "./ui/settings";
 import {
   activeScrollSource,
   autocompleteState,
@@ -80,7 +70,6 @@ import {
   setCurrentHistorySnapshot,
   setIsApplyingHistoryChange,
   setIsInsertMenuOpen,
-  setIsSettingsMenuOpen,
   setPendingCloseRequest,
   setPendingScrollSyncFrame,
   setProgrammaticScrollSource,
@@ -104,27 +93,17 @@ import {
   drawerSectionTitle,
   editor,
   fileActionButtons,
-  fontDecreaseButton,
-  fontIncreaseButton,
-  fontSizeLabel,
   formattingButtons,
   initDom,
   insertMenu,
   insertMenuButton,
-  languageSelect,
   lineStat,
   mainArea,
   modeButtons,
   preview,
   saveState,
-  settingsFieldLabels,
-  settingsGroupTitles,
-  settingsMenu,
-  settingsMenuButton,
   shortcutCopy,
-  shortcutSelect,
   sidebarToggle,
-  themeOptionButtons,
   titleInput,
   topbar,
   wordStat,
@@ -670,10 +649,22 @@ const findController = createFindController({
   applyEditorEdit,
   syncTextFieldState,
   closeInsertMenu,
-  closeSettingsMenu,
+  closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
   closeAutocomplete
 });
 findController.bindListeners();
+
+const settingsController = createSettingsController({
+  render,
+  renderShortcutsDrawer: renderShortcuts,
+  closeInsertMenu,
+  closeAutocomplete,
+  syncActiveScroll,
+  getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions,
+  parseSavedShortcutId: parseSavedAutocompleteShortcutId,
+  getShortcutOptionLabel
+});
+settingsController.bindListeners();
 
 editor.value = state.content;
 resetEditorHistory();
@@ -743,33 +734,6 @@ insertMenu.addEventListener("keydown", (event) => {
     event.preventDefault();
     closeInsertMenu(true);
   }
-});
-
-settingsMenuButton.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    openSettingsMenu();
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    openSettingsMenu(true);
-  }
-});
-
-settingsMenu.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeSettingsMenu(true);
-  }
-});
-
-shortcutSelect.addEventListener("change", () => {
-  setAutocompleteShortcut(shortcutSelect.value);
-});
-
-languageSelect.addEventListener("change", () => {
-  setLocale(languageSelect.value);
 });
 
 editor.addEventListener("input", () => {
@@ -947,23 +911,7 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
-  if (action === "toggle-settings-menu") {
-    toggleSettingsMenu();
-    return;
-  }
-
-  if (action === "set-theme" && target.dataset.themeValue) {
-    setTheme(target.dataset.themeValue as ThemeMode);
-    return;
-  }
-
-  if (action === "font-decrease") {
-    changeZoom(-1);
-    return;
-  }
-
-  if (action === "font-increase") {
-    changeZoom(1);
+  if (action && settingsController.handleAction(action, target)) {
     return;
   }
 
@@ -1008,7 +956,7 @@ const documentKeydownListener: EventListener = async (event) => {
   }
   if (event.key === "Escape" && isSettingsMenuOpen) {
     event.preventDefault();
-    closeSettingsMenu(true);
+    settingsController.closeMenu(true);
     return;
   }
 
@@ -1113,7 +1061,7 @@ const documentClickListener: EventListener = (event) => {
   }
 
   if (isSettingsMenuOpen && !target?.closest(".settings-shell")) {
-    closeSettingsMenu();
+    settingsController.closeMenu();
   }
 };
 
@@ -1125,12 +1073,12 @@ function render() {
   preview.innerHTML = DOMPurify.sanitize(marked.parse(state.content, { async: false }));
   renderStats();
   renderMode();
-  renderTheme();
-  renderZoom();
+  settingsController.renderTheme();
+  settingsController.renderZoom();
   renderDocuments();
   findController.renderPanel();
   renderInsertMenu();
-  renderSettingsMenu();
+  settingsController.renderMenu();
   renderShortcuts();
   renderSaveState();
   renderAutocomplete();
@@ -1188,20 +1136,6 @@ function renderLocale() {
   if (previewButton) {
     previewButton.textContent = t("mode.read");
   }
-
-  settingsMenuButton.setAttribute("title", t("settings.open"));
-  settingsMenuButton.setAttribute("aria-label", t("settings.open"));
-  setTextByDataAttr(themeOptionButtons, "themeValue", "light", t("settings.theme.light"));
-  setTextByDataAttr(themeOptionButtons, "themeValue", "dark", t("settings.theme.dark"));
-  fontDecreaseButton.setAttribute("aria-label", t("settings.zoom.out"));
-  fontIncreaseButton.setAttribute("aria-label", t("settings.zoom.in"));
-
-  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "theme", t("settings.theme"));
-  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "zoom", t("settings.zoom"));
-  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "autocomplete", t("settings.autocomplete"));
-  setTextByDataAttr(settingsGroupTitles, "settingsGroup", "language", t("settings.language"));
-  setTextByDataAttr(settingsFieldLabels, "settingsField", "trigger", t("settings.trigger"));
-  setTextByDataAttr(settingsFieldLabels, "settingsField", "language", t("settings.language"));
 
   drawerSectionTitle.textContent = t("drawer.openDocuments");
   drawerNoteTitle.textContent = t("drawer.shortcuts");
@@ -1295,62 +1229,6 @@ function renderInsertMenu() {
   updateInsertMenuPosition();
 }
 
-function renderSettingsMenu() {
-  settingsMenuButton.setAttribute("aria-expanded", String(isSettingsMenuOpen));
-  settingsMenu.classList.toggle("hidden", !isSettingsMenuOpen);
-  settingsMenu.setAttribute("aria-hidden", String(!isSettingsMenuOpen));
-  settingsMenu.setAttribute("tabindex", isSettingsMenuOpen ? "0" : "-1");
-  renderThemeOptions();
-  renderShortcutOptions();
-  renderLanguageOptions();
-}
-
-function renderThemeOptions() {
-  for (const button of themeOptionButtons) {
-    const themeValue = button.dataset.themeValue;
-    const isActive = themeValue === state.theme;
-    button.classList.toggle("active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-  }
-}
-
-function renderShortcutOptions() {
-  const availableOptions = getAvailableAutocompleteShortcutOptions();
-
-  if (!availableOptions.some((option) => option.id === state.autocompleteShortcutId)) {
-    state.autocompleteShortcutId = parseSavedAutocompleteShortcutId(null);
-    persistAutocompleteShortcut(state.autocompleteShortcutId);
-  }
-
-  const shortcutOptionsMarkup = availableOptions
-    .map((option) => {
-      const label = escapeHtml(getShortcutOptionLabel(option));
-      const selected = option.id === state.autocompleteShortcutId ? " selected" : "";
-      return `<option value="${escapeAttribute(option.id)}"${selected}>${label}</option>`;
-    })
-    .join("");
-
-  shortcutSelect.innerHTML = shortcutOptionsMarkup;
-  shortcutSelect.value = state.autocompleteShortcutId;
-}
-
-function renderLanguageOptions() {
-  const options: Array<{ id: Locale; label: string }> = [
-    { id: "zh", label: "中文" },
-    { id: "ja", label: "日本語" },
-    { id: "en", label: "English" }
-  ];
-
-  languageSelect.innerHTML = options
-    .map((option) => {
-      const selected = option.id === state.locale ? " selected" : "";
-      return `<option value="${option.id}"${selected}>${option.label}</option>`;
-    })
-    .join("");
-
-  languageSelect.value = state.locale;
-}
-
 function renderAutocomplete() {
   const canShow = autocompleteState.isOpen && autocompleteState.items.length > 0 && state.mode !== "preview";
 
@@ -1420,46 +1298,6 @@ function closeConfirmDialog() {
 function setMode(mode: ViewMode) {
   state.mode = mode;
   renderMode();
-}
-
-function renderTheme() {
-  document.documentElement.dataset.theme = state.theme;
-  renderThemeOptions();
-}
-
-function setTheme(theme: ThemeMode) {
-  if (theme !== "light" && theme !== "dark") {
-    return;
-  }
-
-  state.theme = theme;
-  persistTheme(state.theme);
-  renderTheme();
-}
-
-function renderZoom() {
-  document.documentElement.style.setProperty("--content-scale", `${state.zoomPercent / 100}`);
-  fontSizeLabel.textContent = `${state.zoomPercent}%`;
-  fontDecreaseButton.disabled = state.zoomPercent <= MIN_ZOOM_PERCENT;
-  fontIncreaseButton.disabled = state.zoomPercent >= MAX_ZOOM_PERCENT;
-}
-
-function changeZoom(delta: number) {
-  state.zoomPercent = clampZoom(state.zoomPercent + delta * ZOOM_STEP);
-  persistZoom(state.zoomPercent);
-  renderZoom();
-  requestAnimationFrame(() => {
-    syncActiveScroll();
-  });
-}
-
-function resetZoom() {
-  state.zoomPercent = DEFAULT_ZOOM_PERCENT;
-  persistZoom(state.zoomPercent);
-  renderZoom();
-  requestAnimationFrame(() => {
-    syncActiveScroll();
-  });
 }
 
 function createNewDocument() {
@@ -1737,7 +1575,7 @@ function toggleInsertMenu() {
 
 function openInsertMenu(focusIndex = 0) {
   setIsInsertMenuOpen(true);
-  closeSettingsMenu();
+  settingsController.closeMenu();
   closeAutocomplete();
   renderInsertMenu();
   updateInsertMenuPosition();
@@ -2209,19 +2047,19 @@ async function setupMenuListener() {
         setMode("preview");
         break;
       case "view.zoom_in":
-        changeZoom(1);
+        settingsController.changeZoom(1);
         break;
       case "view.zoom_out":
-        changeZoom(-1);
+        settingsController.changeZoom(-1);
         break;
       case "view.actual_size":
-        resetZoom();
+        settingsController.resetZoom();
         break;
       case "view.toggle_sidebar":
         toggleSidebar();
         break;
       case "view.toggle_theme":
-        setTheme(state.theme === "light" ? "dark" : "light");
+        settingsController.setTheme(state.theme === "light" ? "dark" : "light");
         break;
       case "edit.find":
         findController.openFind(false);
@@ -2254,81 +2092,6 @@ async function setupMenuListener() {
       unlisten();
     });
   }
-}
-
-function toggleSettingsMenu() {
-  if (isSettingsMenuOpen) {
-    closeSettingsMenu(true);
-    return;
-  }
-
-  openSettingsMenu();
-}
-
-function openSettingsMenu(focusLast = false) {
-  setIsSettingsMenuOpen(true);
-  closeInsertMenu();
-  closeAutocomplete();
-  renderSettingsMenu();
-  window.setTimeout(() => {
-    focusSettingsControl(focusLast);
-  }, 0);
-}
-
-function closeSettingsMenu(restoreFocus = false) {
-  if (!isSettingsMenuOpen) {
-    return;
-  }
-
-  setIsSettingsMenuOpen(false);
-  renderSettingsMenu();
-
-  if (restoreFocus) {
-    settingsMenuButton.focus();
-  }
-}
-
-function focusSettingsControl(focusLast = false) {
-  const controls = getSettingsControls();
-
-  if (controls.length === 0) {
-    settingsMenu.focus();
-    return;
-  }
-
-  const target = focusLast ? controls[controls.length - 1] : controls[0];
-  target.focus();
-}
-
-function getSettingsControls() {
-  return Array.from(
-    settingsMenu.querySelectorAll<HTMLElement>(
-      "button.settings-option-button, button.font-button, select.settings-shortcut-select"
-    )
-  );
-}
-
-function setAutocompleteShortcut(nextId: string) {
-  const option = getAvailableAutocompleteShortcutOptions().find((entry) => entry.id === nextId);
-
-  if (!option) {
-    return;
-  }
-
-  state.autocompleteShortcutId = option.id;
-  persistAutocompleteShortcut(option.id);
-  renderSettingsMenu();
-  renderShortcuts();
-}
-
-function setLocale(nextLocale: string) {
-  if (!isSupportedLocale(nextLocale)) {
-    return;
-  }
-
-  state.locale = nextLocale;
-  persistLocale(state.locale);
-  render();
 }
 
 async function performEditorAction(action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll") {
@@ -2631,18 +2394,6 @@ function toShortcutKbdMarkup(label: string) {
     .split(" + ")
     .map((part) => `<kbd>${escapeHtml(part)}</kbd>`)
     .join(" + ");
-}
-
-function setTextByDataAttr<E extends HTMLElement>(
-  elements: E[],
-  datasetKey: string,
-  datasetValue: string,
-  text: string
-) {
-  const target = elements.find((el) => el.dataset[datasetKey] === datasetValue);
-  if (target) {
-    target.textContent = text;
-  }
 }
 
 if (import.meta.hot) {
