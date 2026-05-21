@@ -1,23 +1,14 @@
 import DOMPurify from "dompurify";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { marked } from "marked";
 import "./styles.css";
 
 import type {
   AutocompleteShortcutOption,
-  EditorHistorySnapshot,
-  EditorSelectionEdit,
   EditorState,
-  OpenFile,
-  TauriMarkdownFile,
-  TauriSavedMarkdownFile,
   ViewMode
 } from "./types";
-import {
-  MAX_HISTORY_STACK
-} from "./constants";
-import { formatMessage, translate, type TranslationKey } from "./i18n/dictionaries";
+import { translate, type TranslationKey } from "./i18n/dictionaries";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
@@ -28,10 +19,9 @@ import {
   loadInitialSession,
   persistDraft,
   persistSidebar,
-  pushRecentFile,
-  removeRecentFile,
   syncRecentMenu
 } from "./storage/session";
+import { createFilesController } from "./core/files";
 import { createAutocompleteController } from "./ui/autocomplete";
 import { createFindController } from "./ui/find";
 import { createInsertController } from "./ui/insert-menu";
@@ -39,31 +29,23 @@ import { createSettingsController } from "./ui/settings";
 import {
   activeScrollSource,
   autocompleteState,
-  currentHistorySnapshot,
   globalEventListeners,
-  isApplyingHistoryChange,
   isInsertMenuOpen,
   isSettingsMenuOpen,
   pendingCloseRequest,
   pendingScrollSyncFrame,
   programmaticScrollSource,
   recentFiles,
-  redoHistoryStack,
   setActiveScrollSource,
-  setCurrentHistorySnapshot,
-  setIsApplyingHistoryChange,
-  setPendingCloseRequest,
   setPendingScrollSyncFrame,
   setProgrammaticScrollSource,
-  state,
-  undoHistoryStack
+  state
 } from "./state";
 import {
   charStat,
   confirmCloseCancelButton,
   confirmCloseDiscardButton,
   confirmCloseSaveButton,
-  confirmDialogMessage,
   confirmDialogTitle,
   dialogBackdrop,
   documentCount,
@@ -333,15 +315,22 @@ app.innerHTML = `
 
 initDom(app);
 
+const filesController = createFilesController({
+  render,
+  renderDocuments,
+  renderSaveState,
+  closeAutocomplete: () => autocompleteController.close()
+});
+
 const autocompleteController = createAutocompleteController({
-  applyEditorEdit,
+  applyEditorEdit: (edit) => filesController.applyEditorEdit(edit),
   getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions
 });
 autocompleteController.bindListeners();
 
 const findController = createFindController({
-  applyEditorEdit,
-  syncTextFieldState,
+  applyEditorEdit: (edit) => filesController.applyEditorEdit(edit),
+  syncTextFieldState: (target) => filesController.syncTextFieldState(target),
   closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
   closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
   closeAutocomplete: () => autocompleteController.close()
@@ -361,7 +350,7 @@ const settingsController = createSettingsController({
 settingsController.bindListeners();
 
 const insertController = createInsertController({
-  applyEditorEdit,
+  applyEditorEdit: (edit) => filesController.applyEditorEdit(edit),
   getEditorAutocompleteContext: () => autocompleteController.getEditorContext(),
   closeSettingsMenu: (restoreFocus?: boolean) => settingsController.closeMenu(restoreFocus),
   closeAutocomplete: () => autocompleteController.close(),
@@ -370,7 +359,7 @@ const insertController = createInsertController({
 insertController.bindListeners();
 
 editor.value = state.content;
-resetEditorHistory();
+filesController.resetEditorHistory();
 void setupMenuListener();
 void syncRecentMenu();
 render();
@@ -388,7 +377,7 @@ editor.addEventListener("input", () => {
   state.isDirty = true;
   setActiveScrollSource("editor");
   persistDraft();
-  syncActiveFile();
+  filesController.syncActiveFile();
   render();
   autocompleteController.refresh(false);
 });
@@ -440,7 +429,7 @@ editor.addEventListener("blur", () => {
 titleInput.addEventListener("input", () => {
   state.fileName = normalizeFileName(titleInput.value);
   state.isDirty = true;
-  syncActiveFile();
+  filesController.syncActiveFile();
   persistDraft();
   render();
 });
@@ -462,17 +451,17 @@ app.addEventListener("click", async (event) => {
   }
 
   if (action === "new") {
-    createNewDocument();
+    filesController.createNewDocument();
     return;
   }
 
   if (action === "open") {
-    await openDocument();
+    await filesController.openDocument();
     return;
   }
 
   if (action === "save") {
-    await saveDocument();
+    await filesController.saveDocument();
     return;
   }
 
@@ -490,27 +479,27 @@ app.addEventListener("click", async (event) => {
   }
 
   if (action === "select-file" && target.dataset.fileId) {
-    selectOpenFile(target.dataset.fileId);
+    filesController.selectOpenFile(target.dataset.fileId);
     return;
   }
 
   if (action === "close-file" && target.dataset.fileId) {
-    await requestCloseFile(target.dataset.fileId);
+    await filesController.requestCloseFile(target.dataset.fileId);
     return;
   }
 
   if (action === "confirm-close-cancel") {
-    closeConfirmDialog();
+    filesController.closeConfirmDialog();
     return;
   }
 
   if (action === "confirm-close-discard") {
-    discardPendingClose();
+    filesController.discardPendingClose();
     return;
   }
 
   if (action === "confirm-close-save") {
-    await saveAndClosePendingFile();
+    await filesController.saveAndClosePendingFile();
     return;
   }
 
@@ -537,7 +526,7 @@ const documentKeydownListener: EventListener = async (event) => {
 
   if (event.key === "Escape" && pendingCloseRequest) {
     event.preventDefault();
-    closeConfirmDialog();
+    filesController.closeConfirmDialog();
     return;
   }
 
@@ -555,29 +544,29 @@ const documentKeydownListener: EventListener = async (event) => {
 
   if (event.key.toLowerCase() === "z" && !event.altKey) {
     event.preventDefault();
-    await performEditorAction(event.shiftKey ? "redo" : "undo");
+    await filesController.performEditorAction(event.shiftKey ? "redo" : "undo");
     return;
   }
 
   if (event.key.toLowerCase() === "y" && !event.altKey) {
     event.preventDefault();
-    await performEditorAction("redo");
+    await filesController.performEditorAction("redo");
     return;
   }
 
   if (event.key.toLowerCase() === "s") {
     event.preventDefault();
-    await (event.shiftKey ? saveDocumentAs() : saveDocument());
+    await (event.shiftKey ? filesController.saveDocumentAs() : filesController.saveDocument());
   }
 
   if (event.key.toLowerCase() === "o") {
     event.preventDefault();
-    await openDocument();
+    await filesController.openDocument();
   }
 
   if (event.key.toLowerCase() === "n") {
     event.preventDefault();
-    createNewDocument();
+    filesController.createNewDocument();
   }
 
   if (event.key.toLowerCase() === "f") {
@@ -615,7 +604,7 @@ globalEventListeners.push({ target: document, type: "keydown", listener: documen
 
 dialogBackdrop.addEventListener("click", (event) => {
   if (event.target === dialogBackdrop) {
-    closeConfirmDialog();
+    filesController.closeConfirmDialog();
   }
 });
 
@@ -776,280 +765,9 @@ function renderShortcuts() {
   shortcutCopy.innerHTML = buildShortcutMarkup();
 }
 
-function openConfirmDialog(message: string) {
-  confirmDialogMessage.textContent = message;
-  dialogBackdrop.classList.remove("hidden");
-  dialogBackdrop.setAttribute("aria-hidden", "false");
-  confirmCloseSaveButton.focus();
-}
-
-function closeConfirmDialog() {
-  setPendingCloseRequest(null);
-  dialogBackdrop.classList.add("hidden");
-  dialogBackdrop.setAttribute("aria-hidden", "true");
-}
-
 function setMode(mode: ViewMode) {
   state.mode = mode;
   renderMode();
-}
-
-function createNewDocument() {
-  const file = createOpenFile("Untitled.md", "", false);
-
-  state.openFiles.push(file);
-  activateFile(file.id);
-  autocompleteController.close();
-  render();
-  editor.focus();
-}
-
-async function openDocument() {
-  try {
-    const file = await invoke<TauriMarkdownFile | null>("open_markdown_file");
-
-    if (!file) {
-      return;
-    }
-
-    loadNativeFile(file);
-  } catch (error) {
-    console.error(error);
-    renderSaveState(t("state.openFailed"));
-  }
-}
-
-async function openRecentDocument(index: number) {
-  const recentPath = recentFiles[index];
-
-  if (!recentPath) {
-    return;
-  }
-
-  try {
-    const file = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", {
-      path: recentPath
-    });
-
-    if (!file) {
-      removeRecentFile(recentPath);
-      renderSaveState(t("state.openFailed"));
-      return;
-    }
-
-    loadNativeFile(file);
-  } catch (error) {
-    console.error(error);
-    removeRecentFile(recentPath);
-    renderSaveState(t("state.openFailed"));
-  }
-}
-
-async function saveDocument() {
-  return saveCurrentDocument();
-}
-
-async function saveDocumentAs() {
-  return saveCurrentDocument(true);
-}
-
-async function saveCurrentDocument(forceDialog = false) {
-  try {
-    const savedFile = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
-      path: forceDialog ? null : state.nativePath,
-      suggestedName: state.fileName,
-      content: state.content
-    });
-
-    if (!savedFile) {
-      return;
-    }
-
-    state.fileName = savedFile.name;
-    state.nativePath = savedFile.path;
-    pushRecentFile(savedFile.path);
-    titleInput.value = state.fileName;
-    markSaved();
-    return true;
-  } catch (error) {
-    console.error(error);
-    renderSaveState(t("state.saveFailed"));
-    return false;
-  }
-}
-
-function loadNativeFile(file: TauriMarkdownFile) {
-  pushRecentFile(file.path);
-  const existingIndex = state.openFiles.findIndex((item) => item.nativePath === file.path);
-
-  if (existingIndex >= 0) {
-    const existing = state.openFiles[existingIndex];
-    if (!existing.isDirty) {
-      state.openFiles[existingIndex] = {
-        ...existing,
-        name: file.name,
-        content: file.content,
-        nativePath: file.path,
-        isDirty: false
-      };
-    }
-    activateFile(state.openFiles[existingIndex].id);
-  } else {
-    const openFile = createOpenFile(file.name, file.content, false, file.path);
-    state.openFiles.push(openFile);
-    activateFile(openFile.id);
-  }
-
-  autocompleteController.close();
-  render();
-}
-
-function markSaved(message = t("state.saved")) {
-  state.isDirty = false;
-  syncActiveFile();
-  persistDraft();
-  renderDocuments();
-  renderSaveState(message);
-}
-
-function createOpenFile(name: string, content: string, isDirty: boolean, nativePath: string | null = null): OpenFile {
-  return {
-    id: crypto.randomUUID(),
-    name,
-    content,
-    nativePath,
-    isDirty
-  };
-}
-
-function activateFile(fileId: string) {
-  const file = state.openFiles.find((item) => item.id === fileId);
-
-  if (!file) {
-    return;
-  }
-
-  state.activeFileId = file.id;
-  state.content = file.content;
-  state.fileName = file.name;
-  state.nativePath = file.nativePath;
-  state.isDirty = file.isDirty;
-  setActiveScrollSource("editor");
-  editor.value = file.content;
-  titleInput.value = file.name;
-  resetEditorHistory();
-  autocompleteController.close();
-  persistDraft();
-}
-
-function syncActiveFile() {
-  const file = state.openFiles.find((item) => item.id === state.activeFileId);
-
-  if (!file) {
-    return;
-  }
-
-  file.content = state.content;
-  file.name = state.fileName;
-  file.nativePath = state.nativePath;
-  file.isDirty = state.isDirty;
-}
-
-function selectOpenFile(fileId: string) {
-  syncActiveFile();
-  activateFile(fileId);
-  render();
-  editor.focus();
-}
-
-async function requestCloseFile(fileId: string) {
-  const file = state.openFiles.find((item) => item.id === fileId);
-
-  if (!file) {
-    return;
-  }
-
-  if (!file.isDirty) {
-    closeOpenFile(fileId);
-    return;
-  }
-
-  setPendingCloseRequest({ fileId });
-  openConfirmDialog(formatMessage(t("dialog.close.message"), { name: file.name }));
-}
-
-async function requestCloseActiveFile() {
-  await requestCloseFile(state.activeFileId);
-}
-
-function closeOpenFile(fileId: string) {
-  const index = state.openFiles.findIndex((item) => item.id === fileId);
-
-  if (index < 0) {
-    return;
-  }
-
-  state.openFiles.splice(index, 1);
-
-  if (state.openFiles.length === 0) {
-    const file = createOpenFile("Untitled.md", "", false);
-    state.openFiles.push(file);
-    activateFile(file.id);
-  } else if (state.activeFileId === fileId) {
-    const nextFile = state.openFiles[Math.max(0, index - 1)];
-    activateFile(nextFile.id);
-  }
-
-  persistDraft();
-  render();
-}
-
-function discardPendingClose() {
-  if (!pendingCloseRequest) {
-    return;
-  }
-
-  const { fileId } = pendingCloseRequest;
-  closeConfirmDialog();
-  closeOpenFile(fileId);
-}
-
-async function saveAndClosePendingFile() {
-  if (!pendingCloseRequest) {
-    return;
-  }
-
-  const targetFile = state.openFiles.find((item) => item.id === pendingCloseRequest?.fileId);
-
-  if (!targetFile) {
-    closeConfirmDialog();
-    return;
-  }
-
-  const activeFileBeforeSave = state.activeFileId;
-
-  if (targetFile.id !== state.activeFileId) {
-    syncActiveFile();
-    activateFile(targetFile.id);
-    render();
-  }
-
-  const didSave = await saveCurrentDocument();
-
-  if (!didSave) {
-    if (activeFileBeforeSave !== state.activeFileId) {
-      const previousFile = state.openFiles.find((item) => item.id === activeFileBeforeSave);
-      if (previousFile) {
-        activateFile(previousFile.id);
-        render();
-      }
-    }
-    return;
-  }
-
-  const fileId = pendingCloseRequest.fileId;
-  closeConfirmDialog();
-  closeOpenFile(fileId);
 }
 
 function toggleSidebar() {
@@ -1062,10 +780,10 @@ async function setupMenuListener() {
   const unlisten = await listen<string>("app-menu-action", async (event) => {
     switch (event.payload) {
       case "file.new":
-        createNewDocument();
+        filesController.createNewDocument();
         break;
       case "file.open":
-        await openDocument();
+        await filesController.openDocument();
         break;
       case "file.open_recent.1":
       case "file.open_recent.2":
@@ -1079,18 +797,18 @@ async function setupMenuListener() {
       case "file.open_recent.10": {
         const index = Number(event.payload.split(".").at(-1)) - 1;
         if (Number.isInteger(index) && index >= 0) {
-          await openRecentDocument(index);
+          await filesController.openRecentDocument(index);
         }
         break;
       }
       case "file.save":
-        await saveDocument();
+        await filesController.saveDocument();
         break;
       case "file.save_as":
-        await saveDocumentAs();
+        await filesController.saveDocumentAs();
         break;
       case "file.close":
-        await requestCloseActiveFile();
+        await filesController.requestCloseActiveFile();
         break;
       case "view.write":
         setMode("write");
@@ -1146,193 +864,6 @@ async function setupMenuListener() {
     import.meta.hot.dispose(() => {
       unlisten();
     });
-  }
-}
-
-async function performEditorAction(action: "undo" | "redo" | "cut" | "copy" | "paste" | "selectAll") {
-  const activeElement = document.activeElement;
-  const target = isTextField(activeElement) ? activeElement : editor;
-
-  target.focus();
-
-  if (action === "selectAll") {
-    target.select();
-    return;
-  }
-
-  if (action === "copy" || action === "cut") {
-    await copySelection(target);
-
-    if (action === "cut") {
-      replaceSelection(target, "");
-      syncTextFieldState(target);
-    }
-
-    return;
-  }
-
-  if (action === "paste") {
-    const pastedText = await navigator.clipboard.readText();
-    replaceSelection(target, pastedText);
-    syncTextFieldState(target);
-    return;
-  }
-
-  if (target === editor && action === "undo") {
-    if (undoEditorHistory()) {
-      return;
-    }
-  }
-
-  if (target === editor && action === "redo") {
-    if (redoEditorHistory()) {
-      return;
-    }
-  }
-
-  syncTextFieldState(target);
-}
-
-function isTextField(element: Element | null): element is HTMLInputElement | HTMLTextAreaElement {
-  return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
-}
-
-async function copySelection(target: HTMLInputElement | HTMLTextAreaElement) {
-  const start = target.selectionStart ?? 0;
-  const end = target.selectionEnd ?? 0;
-  const selectedText = target.value.slice(start, end);
-
-  await navigator.clipboard.writeText(selectedText);
-}
-
-function replaceSelection(target: HTMLInputElement | HTMLTextAreaElement, nextText: string) {
-  const start = target.selectionStart ?? 0;
-  const end = target.selectionEnd ?? 0;
-
-  target.setRangeText(nextText, start, end, "end");
-  const cursor = start + nextText.length;
-  target.setSelectionRange(cursor, cursor);
-}
-
-function captureEditorHistorySnapshot() {
-  const nextSnapshot = readEditorHistorySnapshot();
-
-  if (
-    nextSnapshot.value === currentHistorySnapshot.value &&
-    nextSnapshot.selectionStart === currentHistorySnapshot.selectionStart &&
-    nextSnapshot.selectionEnd === currentHistorySnapshot.selectionEnd
-  ) {
-    return;
-  }
-
-  undoHistoryStack.push(currentHistorySnapshot);
-
-  if (undoHistoryStack.length > MAX_HISTORY_STACK) {
-    undoHistoryStack.shift();
-  }
-
-  redoHistoryStack.length = 0;
-  setCurrentHistorySnapshot(nextSnapshot);
-}
-
-function readEditorHistorySnapshot(): EditorHistorySnapshot {
-  return {
-    value: editor.value,
-    selectionStart: editor.selectionStart ?? 0,
-    selectionEnd: editor.selectionEnd ?? editor.selectionStart ?? 0
-  };
-}
-
-function applyEditorHistorySnapshot(snapshot: EditorHistorySnapshot) {
-  setIsApplyingHistoryChange(true);
-  editor.value = snapshot.value;
-  editor.focus();
-  editor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
-  setCurrentHistorySnapshot(readEditorHistorySnapshot());
-  syncTextFieldState(editor);
-  setIsApplyingHistoryChange(false);
-}
-
-function resetEditorHistory() {
-  undoHistoryStack.length = 0;
-  redoHistoryStack.length = 0;
-  setCurrentHistorySnapshot(readEditorHistorySnapshot());
-}
-
-function undoEditorHistory() {
-  if (undoHistoryStack.length === 0) {
-    return false;
-  }
-
-  const previousSnapshot = undoHistoryStack.pop();
-
-  if (!previousSnapshot) {
-    return false;
-  }
-
-  redoHistoryStack.push(readEditorHistorySnapshot());
-
-  if (redoHistoryStack.length > MAX_HISTORY_STACK) {
-    redoHistoryStack.shift();
-  }
-
-  applyEditorHistorySnapshot(previousSnapshot);
-  return true;
-}
-
-function redoEditorHistory() {
-  if (redoHistoryStack.length === 0) {
-    return false;
-  }
-
-  const nextSnapshot = redoHistoryStack.pop();
-
-  if (!nextSnapshot) {
-    return false;
-  }
-
-  undoHistoryStack.push(readEditorHistorySnapshot());
-
-  if (undoHistoryStack.length > MAX_HISTORY_STACK) {
-    undoHistoryStack.shift();
-  }
-
-  applyEditorHistorySnapshot(nextSnapshot);
-  return true;
-}
-
-function applyEditorEdit(edit: EditorSelectionEdit) {
-  const nextSelectionStart = edit.selectionStart ?? edit.start + edit.text.length;
-  const nextSelectionEnd = edit.selectionEnd ?? nextSelectionStart;
-
-  editor.focus();
-  editor.setSelectionRange(edit.start, edit.end);
-  editor.setRangeText(edit.text, edit.start, edit.end, "end");
-  editor.setSelectionRange(nextSelectionStart, nextSelectionEnd);
-  syncTextFieldState(editor);
-}
-
-function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
-  if (target === editor) {
-    if (!isApplyingHistoryChange) {
-      captureEditorHistorySnapshot();
-    }
-
-    state.content = editor.value;
-    state.isDirty = true;
-    setActiveScrollSource("editor");
-    persistDraft();
-    syncActiveFile();
-    render();
-    return;
-  }
-
-  if (target === titleInput) {
-    state.fileName = normalizeFileName(titleInput.value);
-    state.isDirty = true;
-    syncActiveFile();
-    persistDraft();
-    render();
   }
 }
 
