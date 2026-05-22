@@ -24,6 +24,7 @@ import type {
   ThemeMode
 } from "../types";
 import { normalizeFileName } from "../utils/path";
+import { logError } from "../utils/logger";
 import {
   parseSavedAutocompleteShortcutId,
   parseSavedDraftSession,
@@ -184,6 +185,6 @@ export async function syncRecentMenu(): Promise<void> {
   try {
     await invoke("update_recent_menu", { paths: recentFiles });
   } catch (error) {
-    console.error("Could not update recent menu.", error);
+    logError("Could not update recent menu.", error);
   }
 }

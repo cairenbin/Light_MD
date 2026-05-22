@@ -34,6 +34,7 @@ import type {
   TauriSavedMarkdownFile
 } from "../types";
 import { normalizeFileName } from "../utils/path";
+import { logError } from "../utils/logger";
 
 export interface FilesControllerDeps {
   render: () => void;
@@ -83,13 +84,13 @@ function t(key: TranslationKey): string {
 export function createFilesController(deps: FilesControllerDeps): FilesController {
   function watchPath(path: string) {
     invoke("watch_file", { path }).catch((error) => {
-      console.error("watch_file failed", error);
+      logError("watch_file failed", error);
     });
   }
 
   function unwatchPath(path: string) {
     invoke("unwatch_file", { path }).catch((error) => {
-      console.error("unwatch_file failed", error);
+      logError("unwatch_file failed", error);
     });
   }
 
@@ -368,7 +369,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
 
       loadNativeFile(file);
     } catch (error) {
-      console.error(error);
+      logError("openDocument failed", error);
       deps.renderSaveState(t("state.openFailed"));
     }
   }
@@ -386,7 +387,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
 
       loadNativeFile(file);
     } catch (error) {
-      console.error(error);
+      logError("openPath failed", error);
       deps.renderSaveState(t("state.openFailed"));
     }
   }
@@ -411,7 +412,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
 
       loadNativeFile(file);
     } catch (error) {
-      console.error(error);
+      logError("openRecentDocument failed", error);
       removeRecentFile(recentPath);
       deps.renderSaveState(t("state.openFailed"));
     }
@@ -453,7 +454,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       markSaved();
       return true;
     } catch (error) {
-      console.error(error);
+      logError("saveCurrentDocument failed", error);
       deps.renderSaveState(t("state.saveFailed"));
       return false;
     }
@@ -516,7 +517,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     try {
       freshFile = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", { path });
     } catch (error) {
-      console.error("handleExternalChange failed", error);
+      logError("handleExternalChange failed", error);
       return;
     }
 

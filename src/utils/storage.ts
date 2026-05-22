@@ -10,6 +10,7 @@ import {
 } from "../constants";
 import { isSupportedLocale } from "../i18n/dictionaries";
 import { normalizeFileName } from "./path";
+import { logError } from "./logger";
 
 export function clampZoom(zoomPercent: number): number {
   return Math.min(MAX_ZOOM_PERCENT, Math.max(MIN_ZOOM_PERCENT, Math.round(zoomPercent)));
@@ -62,7 +63,7 @@ export function parseSavedRecentFiles(value: string | null): string[] {
       .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       .slice(0, MAX_RECENT_FILES);
   } catch (error) {
-    console.error("Could not parse recent files.", error);
+    logError("Could not parse recent files.", error);
     return [];
   }
 }
@@ -124,7 +125,7 @@ export function parseSavedDraftSession(rawSession: string | null): DraftSession 
       openFiles
     };
   } catch (error) {
-    console.error("Could not parse saved draft session.", error);
+    logError("Could not parse saved draft session.", error);
     return null;
   }
 }
