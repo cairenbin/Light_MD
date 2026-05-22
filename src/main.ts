@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import hljs from "highlight.js/lib/common";
 import { marked } from "marked";
 import "./styles.css";
@@ -12,6 +13,7 @@ import type {
 } from "./types";
 import { translate, type TranslationKey } from "./i18n/dictionaries";
 import { escapeAttribute, escapeHtml } from "./utils/html";
+import { resolveLinkAction } from "./utils/link";
 import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
 import { isMacPlatform } from "./utils/platform";
 import {
@@ -435,6 +437,20 @@ preview.addEventListener("scroll", () => {
   }
 
   scheduleScrollSync(preview, editor, "preview");
+});
+
+preview.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  if (!target) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const action = resolveLinkAction(target.getAttribute("href"));
+  if (action.kind === "external") {
+    void openUrl(action.url);
+  }
 });
 
 editor.addEventListener("keydown", (event) => {
