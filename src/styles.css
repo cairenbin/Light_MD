@@ -29,7 +29,7 @@
   --code-bg: rgba(42, 161, 152, 0.12);
   --code-text: #2aa198;
   --pre-bg: #eee8d5;
-  --drawer-width: 280px;
+  --drawer-width: 360px;
   --content-scale: 1;
   --content-font-size: calc(18px * var(--content-scale));
   --content-padding: clamp(28px, calc(5vw * var(--content-scale)), calc(74px * var(--content-scale)));
@@ -622,11 +622,40 @@ kbd {
 
 .drawer-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-content: start;
   gap: 8px;
   height: 100%;
   padding: 14px 14px 12px;
+}
+
+.drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.drawer-tab {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.drawer-tab:hover {
+  color: var(--text);
+}
+
+.drawer-tab.active {
+  border-color: rgba(38, 139, 210, 0.32);
+  background: rgba(38, 139, 210, 0.12);
+  color: var(--text-strong);
 }
 
 .drawer-action {
@@ -771,6 +800,80 @@ kbd {
 .document-row:hover .file-close,
 .document-item.active + .file-close {
   opacity: 1;
+}
+
+.outline-section {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  min-height: 0;
+}
+
+.drawer-section.hidden {
+  display: none;
+}
+
+.outline-empty.hidden {
+  display: none;
+}
+
+.outline-list {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.outline-button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.outline-button:hover {
+  background: rgba(38, 139, 210, 0.08);
+}
+
+.outline-prefix {
+  color: var(--muted);
+  font-family: "SFMono-Regular", "Cascadia Code", monospace;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.outline-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.outline-item.level-1 .outline-button { padding-left: 10px; }
+.outline-item.level-2 .outline-button { padding-left: 22px; }
+.outline-item.level-3 .outline-button { padding-left: 34px; }
+.outline-item.level-4 .outline-button { padding-left: 46px; }
+.outline-item.level-5 .outline-button { padding-left: 58px; }
+.outline-item.level-6 .outline-button { padding-left: 70px; }
+
+.outline-empty {
+  margin: 8px 0 0;
+  padding: 12px 10px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .drawer-note {

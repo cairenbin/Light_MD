@@ -18,7 +18,8 @@ export const state: EditorState = {
   zoomPercent: 100,
   openFiles: [],
   autocompleteShortcutId: "",
-  locale: "en"
+  locale: "en",
+  drawerTab: "documents"
 };
 
 export const findReplaceState: FindReplaceState = {
@@ -27,6 +28,7 @@ export const findReplaceState: FindReplaceState = {
   replaceText: "",
   matchCase: false,
   matchWholeWord: false,
+  matchRegex: false,
   showReplace: false,
   activeMatchIndex: -1
 };

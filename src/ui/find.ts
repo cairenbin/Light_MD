@@ -1,9 +1,10 @@
-import { getFindMatches as getFindMatchesImpl } from "../editor/find";
+import { getFindMatches as getFindMatchesImpl, isValidFindQuery } from "../editor/find";
 import {
   editor,
   findCloseButton,
   findInput,
   findMatchCaseButton,
+  findMatchRegexButton,
   findMatchWordButton,
   findNextButton,
   findPanel,
@@ -50,7 +51,17 @@ export function createFindController(deps: FindControllerDeps): FindController {
     return getFindMatchesImpl(editor.value, {
       query: findReplaceState.query,
       matchCase: findReplaceState.matchCase,
-      matchWholeWord: findReplaceState.matchWholeWord
+      matchWholeWord: findReplaceState.matchWholeWord,
+      matchRegex: findReplaceState.matchRegex
+    });
+  }
+
+  function isCurrentQueryValid() {
+    return isValidFindQuery({
+      query: findReplaceState.query,
+      matchCase: findReplaceState.matchCase,
+      matchWholeWord: findReplaceState.matchWholeWord,
+      matchRegex: findReplaceState.matchRegex
     });
   }
 
@@ -109,21 +120,27 @@ export function createFindController(deps: FindControllerDeps): FindController {
     replaceInput.value = findReplaceState.replaceText;
     findMatchCaseButton.classList.toggle("active", findReplaceState.matchCase);
     findMatchWordButton.classList.toggle("active", findReplaceState.matchWholeWord);
+    findMatchRegexButton.classList.toggle("active", findReplaceState.matchRegex);
     findMatchCaseButton.setAttribute("aria-pressed", String(findReplaceState.matchCase));
     findMatchWordButton.setAttribute("aria-pressed", String(findReplaceState.matchWholeWord));
+    findMatchRegexButton.setAttribute("aria-pressed", String(findReplaceState.matchRegex));
     findMatchCaseButton.title = `${t("find.matchCase")} (${findReplaceState.matchCase ? "on" : "off"})`;
     findMatchWordButton.title = `${t("find.matchWholeWord")} (${findReplaceState.matchWholeWord ? "on" : "off"})`;
+    findMatchRegexButton.title = `${t("find.matchRegex")} (${findReplaceState.matchRegex ? "on" : "off"})`;
 
-    const matches = getFindMatches();
     const hasQuery = findReplaceState.query.length > 0;
+    const queryValid = isCurrentQueryValid();
+    const matches = queryValid ? getFindMatches() : [];
     const hasMatches = matches.length > 0;
     const currentMatchIndex = hasMatches ? getCurrentFindMatchIndex(matches) : -1;
     findReplaceState.activeMatchIndex = currentMatchIndex;
     const current = currentMatchIndex >= 0 ? currentMatchIndex + 1 : 0;
     findStatus.textContent = hasQuery
-      ? hasMatches
-        ? formatMessage(t("find.result"), { current: String(current), total: String(matches.length) })
-        : t("find.result.none")
+      ? !queryValid
+        ? t("find.invalidRegex")
+        : hasMatches
+          ? formatMessage(t("find.result"), { current: String(current), total: String(matches.length) })
+          : t("find.result.none")
       : "";
 
     findPrevButton.disabled = !hasMatches;
@@ -331,6 +348,12 @@ export function createFindController(deps: FindControllerDeps): FindController {
 
     findMatchWordButton.addEventListener("click", () => {
       findReplaceState.matchWholeWord = !findReplaceState.matchWholeWord;
+      findReplaceState.activeMatchIndex = -1;
+      renderPanel();
+    });
+
+    findMatchRegexButton.addEventListener("click", () => {
+      findReplaceState.matchRegex = !findReplaceState.matchRegex;
       findReplaceState.activeMatchIndex = -1;
       renderPanel();
     });

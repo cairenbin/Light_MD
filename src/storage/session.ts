@@ -5,6 +5,7 @@ import {
   DRAFT_KEY,
   DRAFT_SESSION_KEY,
   DRAFT_SESSION_VERSION,
+  DRAWER_TAB_KEY,
   LOCALE_KEY,
   MAX_RECENT_FILES,
   RECENT_FILES_KEY,
@@ -18,6 +19,7 @@ import { recentFiles, state } from "../state";
 import type {
   AutocompleteShortcutOption,
   DraftSession,
+  DrawerTab,
   EditorState,
   Locale,
   OpenFile,
@@ -50,6 +52,7 @@ export function loadInitialSession(
   const savedLocale = localStorage.getItem(LOCALE_KEY);
   const savedRecentFiles = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
   const sidebarRaw = localStorage.getItem(SIDEBAR_KEY);
+  const drawerTabRaw = localStorage.getItem(DRAWER_TAB_KEY);
 
   const initialSession = buildInitialDraftSession(savedSession, savedTitle, savedDraft);
   const initialActiveFile =
@@ -70,7 +73,8 @@ export function loadInitialSession(
       savedAutocompleteShortcut,
       availableAutocompleteShortcutOptions
     ),
-    locale: parseSavedLocale(savedLocale)
+    locale: parseSavedLocale(savedLocale),
+    drawerTab: drawerTabRaw === "outline" ? "outline" : "documents"
   };
 
   return { state: initialState, recentFiles: savedRecentFiles };
@@ -144,6 +148,10 @@ export function persistLocale(locale: Locale): void {
 
 export function persistSidebar(isOpen: boolean): void {
   localStorage.setItem(SIDEBAR_KEY, String(isOpen));
+}
+
+export function persistDrawerTab(tab: DrawerTab): void {
+  localStorage.setItem(DRAWER_TAB_KEY, tab);
 }
 
 export function pushRecentFile(path: string): void {

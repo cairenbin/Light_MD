@@ -19,6 +19,7 @@ import {
 import {
   loadInitialSession,
   persistDraft,
+  persistDrawerTab,
   persistSidebar,
   syncRecentMenu
 } from "./storage/session";
@@ -26,6 +27,7 @@ import { createFilesController } from "./core/files";
 import { createAutocompleteController } from "./ui/autocomplete";
 import { createFindController } from "./ui/find";
 import { createInsertController } from "./ui/insert-menu";
+import { createOutlineController } from "./ui/outline";
 import { createSettingsController } from "./ui/settings";
 import {
   activeScrollSource,
@@ -246,12 +248,25 @@ app.innerHTML = `
     <section class="main-area">
       <aside class="document-drawer" aria-label="Documents">
         <div class="drawer-panel">
-          <section class="drawer-section">
+          <div class="drawer-tabs" role="tablist">
+            <button class="drawer-tab active" data-action="drawer-tab" data-tab="documents" role="tab" aria-selected="true" type="button"></button>
+            <button class="drawer-tab" data-action="drawer-tab" data-tab="outline" role="tab" aria-selected="false" type="button"></button>
+          </div>
+          <section class="drawer-section documents-section">
             <div class="drawer-section-head">
               <span class="drawer-section-title"></span>
               <span class="drawer-section-count">${state.openFiles.length}</span>
             </div>
             <ul class="document-list" aria-label="Open documents"></ul>
+          </section>
+
+          <section class="drawer-section outline-section hidden">
+            <div class="drawer-section-head">
+              <span class="drawer-section-title outline-section-title"></span>
+              <span class="drawer-section-count outline-section-count">0</span>
+            </div>
+            <ul class="outline-list" aria-label="Outline"></ul>
+            <p class="outline-empty hidden"></p>
           </section>
 
           <section class="drawer-note" aria-label="Tips">
@@ -273,6 +288,7 @@ app.innerHTML = `
               <button class="text-button subtle-button find-button" data-action="find-next"></button>
               <button class="text-button subtle-button find-option-button" data-action="find-match-case" type="button">Aa</button>
               <button class="text-button subtle-button find-option-button" data-action="find-match-word" type="button">""</button>
+              <button class="text-button subtle-button find-option-button" data-action="find-match-regex" type="button">.*</button>
               <button class="text-button subtle-button find-button find-toggle-button" data-action="find-toggle-replace"></button>
               <button class="text-button subtle-button find-button" data-action="find-close"></button>
             </div>
@@ -358,6 +374,8 @@ const insertController = createInsertController({
   setMode
 });
 insertController.bindListeners();
+
+const outlineController = createOutlineController();
 
 editor.value = state.content;
 filesController.resetEditorHistory();
@@ -483,6 +501,24 @@ app.addEventListener("click", async (event) => {
 
   if (action === "select-file" && target.dataset.fileId) {
     filesController.selectOpenFile(target.dataset.fileId);
+    return;
+  }
+
+  if (action === "drawer-tab" && target.dataset.tab) {
+    const nextTab = target.dataset.tab === "outline" ? "outline" : "documents";
+
+    if (state.drawerTab !== nextTab) {
+      state.drawerTab = nextTab;
+      persistDrawerTab(state.drawerTab);
+      outlineController.renderTabs();
+      outlineController.renderOutline();
+    }
+
+    return;
+  }
+
+  if (action === "outline-jump" && target.dataset.line) {
+    outlineController.jumpToHeading(Number(target.dataset.line));
     return;
   }
 
@@ -645,6 +681,8 @@ function render() {
   settingsController.renderTheme();
   settingsController.renderZoom();
   renderDocuments();
+  outlineController.renderTabs();
+  outlineController.renderOutline();
   findController.renderPanel();
   insertController.renderMenu();
   settingsController.renderMenu();

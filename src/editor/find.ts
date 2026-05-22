@@ -6,6 +6,7 @@ export type FindOptions = {
   query: string;
   matchCase: boolean;
   matchWholeWord: boolean;
+  matchRegex: boolean;
 };
 
 export function isWholeWordMatch(source: string, start: number, length: number): boolean {
@@ -24,14 +25,37 @@ export function isWholeWordMatch(source: string, start: number, length: number):
   return true;
 }
 
+function compileFindPattern(options: FindOptions): RegExp | null {
+  const source = options.matchRegex
+    ? options.query
+    : options.query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const flags = options.matchCase ? "g" : "gi";
+
+  try {
+    return new RegExp(source, flags);
+  } catch {
+    return null;
+  }
+}
+
+export function isValidFindQuery(options: FindOptions): boolean {
+  if (!options.query) {
+    return true;
+  }
+  return compileFindPattern(options) !== null;
+}
+
 export function getFindMatches(source: string, options: FindOptions): FindMatch[] {
   if (!options.query) {
     return [];
   }
 
-  const escaped = options.query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const flags = options.matchCase ? "g" : "gi";
-  const pattern = new RegExp(escaped, flags);
+  const pattern = compileFindPattern(options);
+
+  if (!pattern) {
+    return [];
+  }
+
   const matches: FindMatch[] = [];
   let result: RegExpExecArray | null;
 

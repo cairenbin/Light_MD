@@ -6,6 +6,7 @@ export const DRAFT_SESSION_KEY = "light-md-editor:draft-session";
 export const DRAFT_SESSION_VERSION = 1;
 export const THEME_KEY = "light-md-editor:theme";
 export const SIDEBAR_KEY = "light-md-editor:sidebar-open";
+export const DRAWER_TAB_KEY = "light-md-editor:drawer-tab";
 export const ZOOM_KEY = "light-md-editor:zoom-percent";
 export const AUTOCOMPLETE_SHORTCUT_KEY = "light-md-editor:autocomplete-shortcut";
 export const LOCALE_KEY = "light-md-editor:locale";

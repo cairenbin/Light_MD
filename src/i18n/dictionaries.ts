@@ -27,8 +27,11 @@ export type TranslationKey =
   | "settings.language"
   | "sidebar.toggle"
   | "drawer.openDocuments"
+  | "drawer.documents"
+  | "drawer.outline"
   | "drawer.shortcuts"
   | "drawer.localDraft"
+  | "outline.empty"
   | "autocomplete.title"
   | "dialog.close.title"
   | "dialog.close.message"
@@ -43,6 +46,8 @@ export type TranslationKey =
   | "find.replace.placeholder"
   | "find.matchCase"
   | "find.matchWholeWord"
+  | "find.matchRegex"
+  | "find.invalidRegex"
   | "find.previous"
   | "find.next"
   | "find.replace"
@@ -91,8 +96,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.language": "Language",
     "sidebar.toggle": "Toggle documents",
     "drawer.openDocuments": "Open Documents",
+    "drawer.documents": "Documents",
+    "drawer.outline": "Outline",
     "drawer.shortcuts": "Shortcuts",
     "drawer.localDraft": "Local draft",
+    "outline.empty": "No headings yet",
     "autocomplete.title": "Markdown Syntax",
     "dialog.close.title": "Save changes before closing?",
     "dialog.close.message": '"{name}" has unsaved changes. Save before closing?',
@@ -107,6 +115,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "find.replace.placeholder": "Replace with",
     "find.matchCase": "Match case",
     "find.matchWholeWord": "Match whole word",
+    "find.matchRegex": "Use regular expression",
+    "find.invalidRegex": "Invalid regular expression",
     "find.previous": "Previous",
     "find.next": "Next",
     "find.replace": "Replace",
@@ -152,8 +162,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.language": "语言",
     "sidebar.toggle": "切换文档列表",
     "drawer.openDocuments": "已打开文档",
+    "drawer.documents": "文档",
+    "drawer.outline": "大纲",
     "drawer.shortcuts": "快捷键",
     "drawer.localDraft": "本地草稿",
+    "outline.empty": "暂无标题",
     "autocomplete.title": "Markdown 语法",
     "dialog.close.title": "关闭前保存更改？",
     "dialog.close.message": "“{name}” 有未保存更改，是否先保存？",
@@ -168,6 +181,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "find.replace.placeholder": "替换为",
     "find.matchCase": "区分大小写",
     "find.matchWholeWord": "全词匹配",
+    "find.matchRegex": "使用正则表达式",
+    "find.invalidRegex": "正则表达式无效",
     "find.previous": "上一个",
     "find.next": "下一个",
     "find.replace": "替换",
@@ -213,8 +228,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.language": "言語",
     "sidebar.toggle": "ドキュメント一覧の切替",
     "drawer.openDocuments": "開いているドキュメント",
+    "drawer.documents": "ドキュメント",
+    "drawer.outline": "アウトライン",
     "drawer.shortcuts": "ショートカット",
     "drawer.localDraft": "ローカル下書き",
+    "outline.empty": "見出しがありません",
     "autocomplete.title": "Markdown 構文",
     "dialog.close.title": "閉じる前に保存しますか？",
     "dialog.close.message": "「{name}」に未保存の変更があります。保存して閉じますか？",
@@ -229,6 +247,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "find.replace.placeholder": "置換",
     "find.matchCase": "大文字/小文字を区別",
     "find.matchWholeWord": "単語単位で一致",
+    "find.matchRegex": "正規表現を使用",
+    "find.invalidRegex": "正規表現が無効です",
     "find.previous": "前へ",
     "find.next": "次へ",
     "find.replace": "置換",

@@ -1,6 +1,7 @@
 export type ViewMode = "write" | "split" | "preview";
 export type ThemeMode = "light" | "dark";
 export type Locale = "zh" | "ja" | "en";
+export type DrawerTab = "documents" | "outline";
 
 export type OpenFile = {
   id: string;
@@ -23,6 +24,7 @@ export type EditorState = {
   zoomPercent: number;
   autocompleteShortcutId: string;
   locale: Locale;
+  drawerTab: DrawerTab;
 };
 
 export type PendingCloseRequest =
@@ -35,6 +37,7 @@ export type FindReplaceState = {
   replaceText: string;
   matchCase: boolean;
   matchWholeWord: boolean;
+  matchRegex: boolean;
   showReplace: boolean;
   activeMatchIndex: number;
 };
