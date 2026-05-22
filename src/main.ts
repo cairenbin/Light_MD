@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import hljs from "highlight.js/lib/common";
 import { marked } from "marked";
 import "./styles.css";
 
@@ -76,6 +77,21 @@ import {
 marked.use({
   gfm: true,
   breaks: false
+});
+
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      const trimmedLang = (lang ?? "").trim().toLowerCase();
+
+      if (trimmedLang && hljs.getLanguage(trimmedLang)) {
+        const highlighted = hljs.highlight(text, { language: trimmedLang, ignoreIllegals: true }).value;
+        return `<pre><code class="hljs language-${escapeAttribute(trimmedLang)}">${highlighted}</code></pre>\n`;
+      }
+
+      return `<pre><code>${escapeHtml(text)}</code></pre>\n`;
+    }
+  }
 });
 
 function t(key: TranslationKey) {
