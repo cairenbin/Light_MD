@@ -40,7 +40,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Arc<WatcherState> {
             let events = match result {
                 Ok(events) => events,
                 Err(errors) => {
-                    eprintln!("file watcher error: {errors:?}");
+                    log::error!("file watcher error: {errors:?}");
                     return;
                 }
             };
@@ -51,7 +51,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Arc<WatcherState> {
             let watched_set = match callback_watched.lock() {
                 Ok(set) => set.clone(),
                 Err(error) => {
-                    eprintln!("watcher.watched lock poisoned: {error}");
+                    log::error!("watcher.watched lock poisoned: {error}");
                     return;
                 }
             };
@@ -60,7 +60,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Arc<WatcherState> {
                 let mut self_writes_map = match callback_self_writes.lock() {
                     Ok(map) => map,
                     Err(error) => {
-                        eprintln!("watcher.self_writes lock poisoned: {error}");
+                        log::error!("watcher.self_writes lock poisoned: {error}");
                         return;
                     }
                 };
@@ -96,7 +96,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Arc<WatcherState> {
                     path: path.to_string_lossy().into_owned(),
                 };
                 if let Err(error) = callback_app.emit("external-file-changed", payload) {
-                    eprintln!("failed to emit external-file-changed: {error}");
+                    log::error!("failed to emit external-file-changed: {error}");
                 }
             }
         },
@@ -105,7 +105,7 @@ pub fn init<R: Runtime>(app: AppHandle<R>) -> Arc<WatcherState> {
     let debouncer = match debouncer {
         Ok(debouncer) => Some(debouncer),
         Err(error) => {
-            eprintln!("failed to create file watcher: {error}");
+            log::error!("failed to create file watcher: {error}");
             None
         }
     };

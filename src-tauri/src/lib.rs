@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind};
 use watcher::WatcherState;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
@@ -67,6 +68,19 @@ struct SavedMarkdownFile {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            LogBuilder::default()
+                .targets([
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("error".into()),
+                    }),
+                    Target::new(TargetKind::Stdout),
+                ])
+                .level(log::LevelFilter::Warn)
+                .max_file_size(1_000_000)
+                .rotation_strategy(RotationStrategy::KeepOne)
+                .build(),
+        )
         .setup(|app| {
             let watcher_state = watcher::init(app.handle().clone());
             app.manage(watcher_state);
