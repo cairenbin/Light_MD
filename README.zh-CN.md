@@ -82,6 +82,8 @@ npm run tauri:dev
 
 ## 许可证
 
+Copyright (c) 2026 Renbin.Cai
+
 本项目采用双许可证模式：
 
 - 开源：GNU General Public License v3.0 or later，见 [LICENSE](LICENSE)。

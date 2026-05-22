@@ -2,7 +2,7 @@
 name = "light-md-editor"
 version = "0.1.0"
 description = "A lightweight Markdown editor"
-authors = ["Light Markdown Editor"]
+authors = ["Renbin.Cai"]
 license = "GPL-3.0-or-later"
 edition = "2021"
 

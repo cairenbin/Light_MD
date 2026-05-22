@@ -82,6 +82,8 @@ The project is in alpha-stage development. It already supports basic Markdown ed
 
 ## License
 
+Copyright (c) 2026 Renbin.Cai
+
 This project is available under a dual-license model:
 
 - Open source: GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
