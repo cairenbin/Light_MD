@@ -27,12 +27,16 @@ import {
   isApplyingHistoryChange
 } from "../state";
 import type {
+  TauriCleanedAssetsResult,
   EditorHistorySnapshot,
   EditorSelectionEdit,
   OpenFile,
   TauriMarkdownFile,
+  TauriSavedImageAsset,
   TauriSavedMarkdownFile
 } from "../types";
+import { buildImageSavePlan, buildMarkdownImageLink } from "../utils/image";
+import { extractMarkdownImageSources } from "../utils/markdown-assets";
 import { normalizeFileName } from "../utils/path";
 import { logError } from "../utils/logger";
 
@@ -62,6 +66,9 @@ export interface FilesController {
   saveDocumentAs: () => Promise<boolean | undefined>;
   saveCurrentDocument: (forceDialog?: boolean) => Promise<boolean | undefined>;
   loadNativeFile: (file: TauriMarkdownFile) => void;
+  insertImageFromPath: (path: string) => Promise<boolean>;
+  insertImageFromClipboardFile: (file: File) => Promise<boolean>;
+  cleanUnusedAssetsForCurrentDocument: () => Promise<boolean>;
 
   selectOpenFile: (fileId: string) => void;
   requestCloseFile: (fileId: string) => Promise<void>;
@@ -207,6 +214,148 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     editor.setRangeText(edit.text, edit.start, edit.end, "end");
     editor.setSelectionRange(nextSelectionStart, nextSelectionEnd);
     syncTextFieldState(editor);
+  }
+
+  function buildImageInsertEdit(relativePath: string, fileName: string): EditorSelectionEdit {
+    const start = editor.selectionStart ?? 0;
+    const end = editor.selectionEnd ?? start;
+    const selectedText = editor.value.slice(start, end).trim();
+    const fallbackAltText = fileName.replace(/\.[^.]+$/u, "") || "image";
+    const altText = selectedText || fallbackAltText;
+    const snippet = buildMarkdownImageLink(relativePath, altText);
+    const cursor = start + snippet.length;
+
+    return {
+      start,
+      end,
+      text: snippet,
+      selectionStart: cursor,
+      selectionEnd: cursor
+    };
+  }
+
+  function getImageTargetDocumentPath(): string | null {
+    if (!state.nativePath) {
+      deps.renderSaveState(t("state.imageNeedsSavedFile"));
+      return null;
+    }
+
+    return state.nativePath;
+  }
+
+  function extractBase64Data(dataUrl: string): string | null {
+    const marker = "base64,";
+    const markerIndex = dataUrl.indexOf(marker);
+
+    if (markerIndex < 0) {
+      return null;
+    }
+
+    const value = dataUrl.slice(markerIndex + marker.length).trim();
+    return value || null;
+  }
+
+  async function fileToBase64Data(file: File): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          resolve(null);
+          return;
+        }
+        resolve(extractBase64Data(reader.result));
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function insertSavedImage(savedAsset: TauriSavedImageAsset): Promise<boolean> {
+    deps.closeAutocomplete();
+    applyEditorEdit(buildImageInsertEdit(savedAsset.relativePath, savedAsset.fileName));
+    deps.renderSaveState(formatMessage(t("state.imageInserted"), { name: savedAsset.fileName }));
+    return true;
+  }
+
+  async function insertImageFromPath(path: string): Promise<boolean> {
+    const documentPath = getImageTargetDocumentPath();
+
+    if (!documentPath) {
+      return false;
+    }
+
+    try {
+      const plan = buildImageSavePlan({
+        markdownPath: documentPath,
+        sourceName: path
+      });
+      const savedAsset = await invoke<TauriSavedImageAsset>("copy_image_to_assets", {
+        sourcePath: path,
+        documentPath,
+        targetFileName: plan.fileName
+      });
+      return insertSavedImage(savedAsset);
+    } catch (error) {
+      logError("insertImageFromPath failed", error);
+      deps.renderSaveState(t("state.imageInsertFailed"));
+      return false;
+    }
+  }
+
+  async function insertImageFromClipboardFile(file: File): Promise<boolean> {
+    const documentPath = getImageTargetDocumentPath();
+
+    if (!documentPath) {
+      return false;
+    }
+
+    const base64Data = await fileToBase64Data(file);
+
+    if (!base64Data) {
+      deps.renderSaveState(t("state.imageInsertFailed"));
+      return false;
+    }
+
+    try {
+      const plan = buildImageSavePlan({
+        markdownPath: documentPath,
+        sourceName: file.name,
+        mimeType: file.type
+      });
+      const savedAsset = await invoke<TauriSavedImageAsset>("save_image_to_assets", {
+        documentPath,
+        base64Data,
+        mimeType: file.type,
+        targetFileName: plan.fileName
+      });
+      return insertSavedImage(savedAsset);
+    } catch (error) {
+      logError("insertImageFromClipboardFile failed", error);
+      deps.renderSaveState(t("state.imageInsertFailed"));
+      return false;
+    }
+  }
+
+  async function cleanUnusedAssetsForCurrentDocument(): Promise<boolean> {
+    if (!state.nativePath) {
+      deps.renderSaveState(t("state.imageNeedsSavedFile"));
+      return false;
+    }
+
+    try {
+      const referencedSources = extractMarkdownImageSources(state.content);
+      const result = await invoke<TauriCleanedAssetsResult>("clean_unused_assets_for_document", {
+        documentPath: state.nativePath,
+        referencedSources
+      });
+
+      deps.renderSaveState(formatMessage(t("state.assetsCleaned"), { count: String(result.movedCount) }));
+      return true;
+    } catch (error) {
+      logError("cleanUnusedAssetsForCurrentDocument failed", error);
+      deps.renderSaveState(t("state.assetsCleanFailed"));
+      return false;
+    }
   }
 
   function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
@@ -673,6 +822,9 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     saveDocumentAs,
     saveCurrentDocument,
     loadNativeFile,
+    insertImageFromPath,
+    insertImageFromClipboardFile,
+    cleanUnusedAssetsForCurrentDocument,
     selectOpenFile,
     requestCloseFile,
     requestCloseActiveFile,

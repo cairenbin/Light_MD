@@ -21,6 +21,9 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Autocomplete hints with configurable trigger key combinations.
 - `File > Open Recent` with real filename + path history entries (up to 10).
 - Formatting toolbar actions (`Bold`, `Italic`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
+- Image paste/drag support: image files are copied into document-scoped `assets/<document-name>/` and inserted as Markdown links.
+- `File > Clean Unused Assets...` to safely move unreferenced current-document assets to Trash/Recycle Bin.
+- Native app menu localization follows in-app language for custom menu items (English, 中文, 日本語).
 - Settings panel for theme, zoom, and autocomplete shortcut preferences.
 - Built-in UI language switching (`English`, `中文`, `日本語`) from Settings.
 - Native file dialogs and desktop shortcuts.

@@ -59,6 +59,17 @@ export type TauriSavedMarkdownFile = {
   name: string;
 };
 
+export type TauriSavedImageAsset = {
+  fileName: string;
+  relativePath: string;
+  absolutePath: string;
+};
+
+export type TauriCleanedAssetsResult = {
+  movedCount: number;
+  movedFiles: string[];
+};
+
 export type EditorSelectionEdit = {
   start: number;
   end: number;

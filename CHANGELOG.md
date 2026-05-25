@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file.
 - Match options for Find: `Match case (Aa)` and `Match whole word ("")`.
 - File menu `Open Recent` history with real filename + full path labels (up to 10 entries).
 - Formatting toolbar actions and dedicated native `Formatting` menu (`Bold`, `Italic`, `Link`, `Code`, `Quote`).
+- Image paste and drag-to-insert workflow for local files, with markdown link insertion.
+- Document-scoped asset storage (`assets/<document-stem>/...`) for inserted images.
+- `File > Clean Unused Assets...` to clean unreferenced assets for the current document scope only.
+- Native command support for image preview fallback via data URL (`read_image_as_data_url`).
+- Native app menu localization command (`set_menu_locale`) and localized custom Edit menu actions (`Undo/Redo/Cut/Copy/Paste/Select All`).
 
 ### Changed
 
@@ -40,6 +45,8 @@ All notable changes to this project will be documented in this file.
 - Refined find/replace panel placement and interaction to behave like an IDE bottom panel for better layout stability.
 - Updated keyboard behavior for find workflow (`Cmd/Ctrl+F`, `Cmd/Ctrl+R`) to support predictable open/close toggling.
 - Expanded localization coverage for newly added editor actions and find/replace UI copy in English, Chinese, and Japanese.
+- Extended native menu localization to cover custom menu items under File/Edit/Formatting/View/Help.
+- Startup flow now refreshes the active saved document once to stabilize first-render preview behavior for local images.
 
 ### Security
 
@@ -69,6 +76,8 @@ All notable changes to this project will be documented in this file.
 - Fixed keyboard interaction for autocomplete and insert overlays (focus handling, arrow navigation, and escape behavior).
 - Fixed find result index display edge cases (for example `1/1` initialization when the first match is already active).
 - Fixed replace panel layout breakage under multilingual labels, especially in English/Japanese compact widths.
+- Fixed a startup preview issue where local images could fail to render until the file was reopened.
+- Fixed first-open image rendering reliability by combining `convertFileSrc` with data-URL fallback.
 
 ### Notes
 

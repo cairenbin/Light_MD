@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { documentInitial, formatPathForDisplay, normalizeFileName } from "./path";
+import {
+  documentInitial,
+  formatPathForDisplay,
+  isRelativePath,
+  normalizeFileName,
+  resolveDocumentRelativePath
+} from "./path";
 
 describe("normalizeFileName", () => {
   it("falls back to Untitled.md when input is empty or whitespace", () => {
@@ -51,5 +57,30 @@ describe("documentInitial", () => {
   it("falls back to a bullet when the name is blank", () => {
     expect(documentInitial("")).toBe("•");
     expect(documentInitial("   ")).toBe("•");
+  });
+});
+
+describe("isRelativePath", () => {
+  it("detects relative paths", () => {
+    expect(isRelativePath("assets/a.png")).toBe(true);
+    expect(isRelativePath("../assets/a.png")).toBe(true);
+  });
+
+  it("rejects absolute or scheme paths", () => {
+    expect(isRelativePath("/assets/a.png")).toBe(false);
+    expect(isRelativePath("file:///a.png")).toBe(false);
+    expect(isRelativePath("https://example.com/a.png")).toBe(false);
+  });
+});
+
+describe("resolveDocumentRelativePath", () => {
+  it("resolves relative path against markdown file directory", () => {
+    expect(resolveDocumentRelativePath("/docs/readme.md", "assets/a.png")).toBe("/docs/assets/a.png");
+    expect(resolveDocumentRelativePath("C:/docs/readme.md", "../img/a.png")).toBe("C:/img/a.png");
+  });
+
+  it("returns null for unsupported inputs", () => {
+    expect(resolveDocumentRelativePath("/docs/readme.md", "https://example.com/a.png")).toBeNull();
+    expect(resolveDocumentRelativePath("readme.md", "assets/a.png")).toBeNull();
   });
 });

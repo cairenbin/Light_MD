@@ -63,6 +63,11 @@ export type TranslationKey =
   | "state.reloaded"
   | "state.openFailed"
   | "state.saveFailed"
+  | "state.imageNeedsSavedFile"
+  | "state.imageInserted"
+  | "state.imageInsertFailed"
+  | "state.assetsCleaned"
+  | "state.assetsCleanFailed"
   | "stats.words"
   | "stats.chars"
   | "stats.lines";
@@ -132,6 +137,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.reloaded": "Reloaded from disk",
     "state.openFailed": "Could not open file",
     "state.saveFailed": "Could not save file",
+    "state.imageNeedsSavedFile": "Save the document first to insert images into assets",
+    "state.imageInserted": "Inserted image: {name}",
+    "state.imageInsertFailed": "Could not insert image",
+    "state.assetsCleaned": "Moved {count} unused assets to Trash",
+    "state.assetsCleanFailed": "Could not clean unused assets",
     "stats.words": "words",
     "stats.chars": "chars",
     "stats.lines": "lines"
@@ -198,6 +208,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.reloaded": "已从磁盘重新载入",
     "state.openFailed": "打开文件失败",
     "state.saveFailed": "保存文件失败",
+    "state.imageNeedsSavedFile": "请先保存当前文档，再插入图片到 assets",
+    "state.imageInserted": "已插入图片：{name}",
+    "state.imageInsertFailed": "插入图片失败",
+    "state.assetsCleaned": "已将 {count} 个未引用资源移到回收站",
+    "state.assetsCleanFailed": "清理未引用资源失败",
     "stats.words": "词",
     "stats.chars": "字符",
     "stats.lines": "行"
@@ -264,6 +279,11 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.reloaded": "ディスクから再読み込みしました",
     "state.openFailed": "ファイルを開けませんでした",
     "state.saveFailed": "ファイルを保存できませんでした",
+    "state.imageNeedsSavedFile": "画像を assets に保存するには先にドキュメントを保存してください",
+    "state.imageInserted": "画像を挿入しました: {name}",
+    "state.imageInsertFailed": "画像を挿入できませんでした",
+    "state.assetsCleaned": "未使用アセット {count} 件をゴミ箱へ移動しました",
+    "state.assetsCleanFailed": "未使用アセットをクリーンできませんでした",
     "stats.words": "語",
     "stats.chars": "文字",
     "stats.lines": "行"

@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -9,12 +10,15 @@ import "./styles.css";
 import type {
   AutocompleteShortcutOption,
   EditorState,
+  Locale,
+  TauriMarkdownFile,
   ViewMode
 } from "./types";
 import { translate, type TranslationKey } from "./i18n/dictionaries";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { resolveLinkAction } from "./utils/link";
-import { documentInitial, formatPathForDisplay, normalizeFileName } from "./utils/path";
+import { documentInitial, formatPathForDisplay, normalizeFileName, resolveDocumentRelativePath } from "./utils/path";
+import { isImagePath } from "./utils/image";
 import { isMacPlatform } from "./utils/platform";
 import {
   parseSavedAutocompleteShortcutId as parseSavedAutocompleteShortcutIdImpl
@@ -378,6 +382,9 @@ const settingsController = createSettingsController({
   closeInsertMenu: (restoreFocus?: boolean) => insertController.closeMenu(restoreFocus),
   closeAutocomplete: () => autocompleteController.close(),
   syncActiveScroll,
+  syncNativeMenuLocale: (locale) => {
+    void syncNativeMenuLocale(locale);
+  },
   getAvailableShortcutOptions: getAvailableAutocompleteShortcutOptions,
   parseSavedShortcutId: parseSavedAutocompleteShortcutId,
   getShortcutOptionLabel
@@ -401,6 +408,8 @@ void setupMenuListener();
 void setupFileDropListener();
 void setupExternalChangeListener();
 void syncRecentMenu();
+void syncNativeMenuLocale(state.locale);
+void refreshActiveNativeFileOnStartup();
 render();
 persistDraft();
 
@@ -463,6 +472,19 @@ editor.addEventListener("keydown", (event) => {
 
 editor.addEventListener("click", () => {
   autocompleteController.refresh(false);
+});
+
+editor.addEventListener("paste", (event) => {
+  const items = Array.from(event.clipboardData?.items ?? []);
+  const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
+  const file = imageItem?.getAsFile();
+
+  if (!file) {
+    return;
+  }
+
+  event.preventDefault();
+  void filesController.insertImageFromClipboardFile(file);
 });
 
 editor.addEventListener("keyup", (event) => {
@@ -708,6 +730,7 @@ globalEventListeners.push({ target: document, type: "click", listener: documentC
 function render() {
   renderLocale();
   preview.innerHTML = DOMPurify.sanitize(marked.parse(state.content, { async: false }));
+  void rewritePreviewImageSources();
   renderStats();
   renderMode();
   settingsController.renderTheme();
@@ -725,6 +748,80 @@ function render() {
     syncActiveScroll();
     autocompleteController.updatePosition();
   });
+}
+
+async function refreshActiveNativeFileOnStartup() {
+  const activeFile = state.openFiles.find((file) => file.id === state.activeFileId);
+
+  if (!activeFile?.nativePath || activeFile.isDirty) {
+    return;
+  }
+
+  try {
+    const freshFile = await invoke<TauriMarkdownFile | null>("open_markdown_file_from_path", {
+      path: activeFile.nativePath
+    });
+
+    if (!freshFile) {
+      return;
+    }
+
+    filesController.loadNativeFile(freshFile);
+  } catch {
+    // Keep restored local session when startup refresh fails.
+  }
+}
+
+async function syncNativeMenuLocale(locale: Locale) {
+  try {
+    await invoke("set_menu_locale", { locale });
+  } catch {
+    // Keep running when native menu is unavailable.
+  }
+}
+
+let previewRewriteSequence = 0;
+
+async function rewritePreviewImageSources() {
+  if (!state.nativePath) {
+    return;
+  }
+
+  const sequence = previewRewriteSequence + 1;
+  previewRewriteSequence = sequence;
+  const images = preview.querySelectorAll<HTMLImageElement>("img[src]");
+  const tasks: Promise<void>[] = [];
+
+  for (const image of images) {
+    const source = image.getAttribute("src");
+
+    if (!source) {
+      continue;
+    }
+
+    const absolutePath = resolveDocumentRelativePath(state.nativePath, source);
+
+    if (!absolutePath) {
+      continue;
+    }
+
+    image.setAttribute("src", convertFileSrc(absolutePath));
+
+    tasks.push(
+      invoke<string>("read_image_as_data_url", { path: absolutePath })
+        .then((dataUrl) => {
+          if (previewRewriteSequence !== sequence) {
+            return;
+          }
+          image.setAttribute("src", dataUrl);
+        })
+        .catch(() => {
+          // Keep convertFileSrc source when data-url fallback fails.
+        })
+    );
+  }
+
+  await Promise.all(tasks);
 }
 
 function renderStats() {
@@ -889,8 +986,29 @@ async function setupMenuListener() {
       case "file.save_as":
         await filesController.saveDocumentAs();
         break;
+      case "file.clean_unused_assets":
+        await filesController.cleanUnusedAssetsForCurrentDocument();
+        break;
       case "file.close":
         await filesController.requestCloseActiveFile();
+        break;
+      case "edit.undo":
+        await filesController.performEditorAction("undo");
+        break;
+      case "edit.redo":
+        await filesController.performEditorAction("redo");
+        break;
+      case "edit.cut":
+        await filesController.performEditorAction("cut");
+        break;
+      case "edit.copy":
+        await filesController.performEditorAction("copy");
+        break;
+      case "edit.paste":
+        await filesController.performEditorAction("paste");
+        break;
+      case "edit.select_all":
+        await filesController.performEditorAction("selectAll");
         break;
       case "view.write":
         setMode("write");
@@ -966,10 +1084,14 @@ async function setupFileDropListener() {
     }
 
     for (const path of event.payload.paths) {
-      if (!hasAcceptedExtension(path)) {
+      if (isImagePath(path)) {
+        await filesController.insertImageFromPath(path);
         continue;
       }
-      await filesController.openPath(path);
+
+      if (hasAcceptedExtension(path)) {
+        await filesController.openPath(path);
+      }
     }
   });
 

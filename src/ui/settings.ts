@@ -38,6 +38,7 @@ export interface SettingsControllerDeps {
   closeInsertMenu: (restoreFocus?: boolean) => void;
   closeAutocomplete: () => void;
   syncActiveScroll: () => void;
+  syncNativeMenuLocale: (locale: Locale) => void;
   getAvailableShortcutOptions: () => AutocompleteShortcutOption[];
   parseSavedShortcutId: (value: string | null) => string;
   getShortcutOptionLabel: (option: AutocompleteShortcutOption) => string;
@@ -261,6 +262,7 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
 
     state.locale = nextLocale;
     persistLocale(state.locale);
+    deps.syncNativeMenuLocale(state.locale);
     deps.render();
   }
 
