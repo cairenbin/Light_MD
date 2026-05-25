@@ -8,5 +8,6 @@ coverage/
 .env
 .env.*
 !.env.example
+CLAUDE.md
 
 src-tauri/target/
