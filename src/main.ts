@@ -36,6 +36,7 @@ import { createFindController } from "./ui/find";
 import { createInsertController } from "./ui/insert-menu";
 import { createOutlineController } from "./ui/outline";
 import { createSettingsController } from "./ui/settings";
+import { applyTabIndentation } from "./editor/indent";
 import {
   activeScrollSource,
   autocompleteState,
@@ -464,6 +465,26 @@ preview.addEventListener("click", (event) => {
 
 editor.addEventListener("keydown", (event) => {
   if (autocompleteController.handleKeydown(event)) {
+    return;
+  }
+
+  if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    const selectionStart = editor.selectionStart ?? 0;
+    const selectionEnd = editor.selectionEnd ?? selectionStart;
+    const result = applyTabIndentation({
+      value: editor.value,
+      selectionStart,
+      selectionEnd,
+      outdent: event.shiftKey
+    });
+
+    if (result.changed) {
+      editor.value = result.value;
+      editor.setSelectionRange(result.selectionStart, result.selectionEnd);
+      filesController.syncTextFieldState(editor);
+      autocompleteController.refresh(false);
+    }
     return;
   }
 
