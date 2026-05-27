@@ -32,8 +32,8 @@
   --drawer-width: 360px;
   --content-scale: 1;
   --content-font-size: calc(18px * var(--content-scale));
-  --content-padding: clamp(28px, calc(5vw * var(--content-scale)), calc(74px * var(--content-scale)));
-  --content-gutter-pair: clamp(56px, calc(10vw * var(--content-scale)), calc(148px * var(--content-scale)));
+  --content-padding: 8px;
+  --content-gutter-pair: 0px;
   --content-flow: calc(18px * var(--content-scale));
   --h1-size: calc(46px * var(--content-scale));
   --h2-size: calc(28px * var(--content-scale));
