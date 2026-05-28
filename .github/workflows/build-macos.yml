@@ -44,7 +44,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build Tauri bundles
+      - name: Build Tauri bundles (branch/manual)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,18 +53,20 @@ jobs:
           args: --target ${{ matrix.target }}
 
       - name: Upload artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/${{ matrix.target }}/release/bundle/**
           if-no-files-found: error
 
-      - name: Upload release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Build and publish release assets (tag)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
-          files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+          args: --target ${{ matrix.target }}
+          tagName: ${{ github.ref_name }}
+          releaseName: Light Markdown Editor ${{ github.ref_name }}
+          releaseBody: See the assets below to download and install this version.
