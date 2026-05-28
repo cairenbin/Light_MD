@@ -20,9 +20,11 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             artifact_name: LightMD-macos-arm64
+            asset_suffix: arm64
           - os: macos-13
             target: x86_64-apple-darwin
             artifact_name: LightMD-macos-x64
+            asset_suffix: x64
 
     runs-on: ${{ matrix.os }}
 
@@ -49,8 +51,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version
-          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" \
-          VERSION="$VERSION"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
 
       - name: Build Tauri bundles (branch/manual)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -68,13 +69,30 @@ jobs:
           path: src-tauri/target/${{ matrix.target }}/release/bundle/**
           if-no-files-found: error
 
-      - name: Build and publish release assets (tag)
+      - name: Build Tauri bundles (tag)
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: --target ${{ matrix.target }}
-          tagName: ${{ github.ref_name }}
-          releaseName: LightMD ${{ github.ref_name }}
-          releaseBody: See the assets below to download and install this version.
+
+      - name: Rename release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p release-assets
+          DMG_SOURCE="$(ls src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)"
+          APP_SOURCE="$(ls src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz)"
+          cp "$DMG_SOURCE" "release-assets/LightMD-${VERSION}-macos-${{ matrix.asset_suffix }}.dmg"
+          cp "$APP_SOURCE" "release-assets/LightMD-${VERSION}-macos-${{ matrix.asset_suffix }}.app.tar.gz"
+
+      - name: Upload release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: LightMD ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
+          fail_on_unmatched_files: true
