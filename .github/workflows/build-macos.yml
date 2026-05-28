@@ -19,10 +19,10 @@ jobs:
         include:
           - os: macos-14
             target: aarch64-apple-darwin
-            artifact_name: light-md-editor-macos-arm64
+            artifact_name: LightMD-macos-arm64
           - os: macos-13
             target: x86_64-apple-darwin
-            artifact_name: light-md-editor-macos-x64
+            artifact_name: LightMD-macos-x64
 
     runs-on: ${{ matrix.os }}
 
@@ -43,6 +43,14 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Sync app version from tag
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" \
+          VERSION="$VERSION"
 
       - name: Build Tauri bundles (branch/manual)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -68,5 +76,5 @@ jobs:
         with:
           args: --target ${{ matrix.target }}
           tagName: ${{ github.ref_name }}
-          releaseName: Light Markdown Editor ${{ github.ref_name }}
+          releaseName: LightMD ${{ github.ref_name }}
           releaseBody: See the assets below to download and install this version.
