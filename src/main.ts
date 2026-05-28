@@ -77,6 +77,8 @@ import {
   sidebarToggle,
   titleInput,
   topbar,
+  topbarEditorZone,
+  toolbar,
   wordStat,
   workspace
 } from "./dom";
@@ -120,6 +122,66 @@ marked.use({
 
 function t(key: TranslationKey) {
   return translate(state.locale, key);
+}
+
+let pendingTopbarLayoutFrame: number | null = null;
+let pendingTopbarLayoutPostFrame: number | null = null;
+
+function hasWrappedChildren(container: HTMLElement): boolean {
+  const children = Array.from(container.children).filter(
+    (node): node is HTMLElement => node instanceof HTMLElement && node.offsetParent !== null
+  );
+
+  if (children.length <= 1) {
+    return false;
+  }
+
+  const anchorTop = children[0].offsetTop;
+  return children.some((child) => Math.abs(child.offsetTop - anchorTop) > 2);
+}
+
+function updateTopbarLayout() {
+  const wasCompact = topbar.classList.contains("toolbar-compact");
+
+  if (wasCompact) {
+    topbar.classList.remove("toolbar-compact");
+  }
+
+  const zoneWrapped = hasWrappedChildren(topbarEditorZone);
+  const toolbarWrapped = hasWrappedChildren(toolbar);
+  const hasOverflow =
+    toolbar.scrollWidth > toolbar.clientWidth + 1 ||
+    topbarEditorZone.scrollWidth > topbarEditorZone.clientWidth + 1;
+  const shouldCompact = zoneWrapped || toolbarWrapped || hasOverflow;
+
+  if (shouldCompact) {
+    topbar.classList.add("toolbar-compact");
+  }
+}
+
+function scheduleTopbarLayoutUpdate() {
+  if (pendingTopbarLayoutFrame !== null) {
+    cancelAnimationFrame(pendingTopbarLayoutFrame);
+  }
+
+  if (pendingTopbarLayoutPostFrame !== null) {
+    cancelAnimationFrame(pendingTopbarLayoutPostFrame);
+  }
+
+  pendingTopbarLayoutFrame = requestAnimationFrame(() => {
+    pendingTopbarLayoutFrame = null;
+    updateTopbarLayout();
+    insertController.updateMenuPosition();
+    autocompleteController.updatePosition();
+
+    // Run a second pass after the browser applies any late wrap/scrollbar changes.
+    pendingTopbarLayoutPostFrame = requestAnimationFrame(() => {
+      pendingTopbarLayoutPostFrame = null;
+      updateTopbarLayout();
+      insertController.updateMenuPosition();
+      autocompleteController.updatePosition();
+    });
+  });
 }
 
 const autocompleteShortcutOptions: AutocompleteShortcutOption[] = [
@@ -432,8 +494,7 @@ render();
 persistDraft();
 
 const resizeListener = () => {
-  insertController.updateMenuPosition();
-  autocompleteController.updatePosition();
+  scheduleTopbarLayoutUpdate();
 };
 window.addEventListener("resize", resizeListener);
 globalEventListeners.push({ target: window, type: "resize", listener: resizeListener });
@@ -816,6 +877,7 @@ function render() {
   renderSaveState();
   autocompleteController.renderPanel();
   requestAnimationFrame(() => {
+    updateTopbarLayout();
     syncActiveScroll();
     autocompleteController.updatePosition();
   });
@@ -1009,6 +1071,8 @@ function renderDocuments() {
       `;
     })
     .join("");
+
+  scheduleTopbarLayoutUpdate();
 }
 
 function renderShortcuts() {

@@ -14,6 +14,8 @@ export let titleInput!: HTMLInputElement;
 export let saveState!: HTMLSpanElement;
 export let workspace!: HTMLElement;
 export let topbar!: HTMLElement;
+export let topbarEditorZone!: HTMLDivElement;
+export let toolbar!: HTMLElement;
 export let mainArea!: HTMLElement;
 export let sidebarToggle!: HTMLButtonElement;
 export let documentList!: HTMLUListElement;
@@ -91,6 +93,8 @@ export function initDom(app: HTMLElement): void {
   saveState = requireElement<HTMLSpanElement>(".save-state");
   workspace = requireElement<HTMLElement>(".workspace");
   topbar = requireElement<HTMLElement>(".topbar");
+  topbarEditorZone = requireElement<HTMLDivElement>(".topbar-editor-zone");
+  toolbar = requireElement<HTMLElement>(".toolbar");
   mainArea = requireElement<HTMLElement>(".main-area");
   sidebarToggle = requireElement<HTMLButtonElement>(".sidebar-toggle");
   documentList = requireElement<HTMLUListElement>(".document-list");
