@@ -468,6 +468,13 @@ editor.addEventListener("keydown", (event) => {
     return;
   }
 
+  if ((event.key === "Home" || event.key === "End") && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    moveCaretToLineBoundary(editor, event.key === "Home" ? "start" : "end", event.shiftKey);
+    autocompleteController.refresh(autocompleteState.manual);
+    return;
+  }
+
   if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
     const selectionStart = editor.selectionStart ?? 0;
@@ -490,6 +497,32 @@ editor.addEventListener("keydown", (event) => {
 
   autocompleteController.handleContinuation(event);
 });
+
+function moveCaretToLineBoundary(
+  target: HTMLTextAreaElement,
+  boundary: "start" | "end",
+  extendSelection: boolean
+) {
+  const value = target.value;
+  const selectionStart = target.selectionStart ?? 0;
+  const selectionEnd = target.selectionEnd ?? selectionStart;
+  const selectionDirection = target.selectionDirection ?? "none";
+  const activeCaret = selectionDirection === "backward" ? selectionStart : selectionEnd;
+  const anchorCaret = selectionDirection === "backward" ? selectionEnd : selectionStart;
+
+  const lineStart = value.lastIndexOf("\n", Math.max(0, activeCaret - 1)) + 1;
+  const nextLineBreak = value.indexOf("\n", activeCaret);
+  const lineEnd = nextLineBreak === -1 ? value.length : nextLineBreak;
+  const nextCaret = boundary === "start" ? lineStart : lineEnd;
+
+  if (!extendSelection) {
+    target.setSelectionRange(nextCaret, nextCaret, "none");
+    return;
+  }
+
+  const direction = nextCaret < anchorCaret ? "backward" : "forward";
+  target.setSelectionRange(anchorCaret, nextCaret, direction);
+}
 
 editor.addEventListener("click", () => {
   autocompleteController.refresh(false);
