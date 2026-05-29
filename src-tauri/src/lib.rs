@@ -12,6 +12,7 @@ use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKi
 use watcher::WatcherState;
 
 const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
+const ALLOWED_EXPORT_HTML_EXTENSIONS: &[&str] = &["html", "htm"];
 const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
 
 #[derive(Clone, Copy)]
@@ -32,6 +33,7 @@ struct MenuLabels {
     file_open_recent: &'static str,
     file_save: &'static str,
     file_save_as: &'static str,
+    file_export_html: &'static str,
     file_clean_unused_assets: &'static str,
     file_close: &'static str,
     edit_undo: &'static str,
@@ -78,6 +80,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_open_recent: "Open Recent",
             file_save: "Save",
             file_save_as: "Save As...",
+            file_export_html: "Export HTML...",
             file_clean_unused_assets: "Clean Unused Assets...",
             file_close: "Close Document",
             edit_undo: "Undo",
@@ -113,6 +116,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_open_recent: "最近打开",
             file_save: "保存",
             file_save_as: "另存为...",
+            file_export_html: "导出 HTML...",
             file_clean_unused_assets: "清理未使用资源...",
             file_close: "关闭文档",
             edit_undo: "撤销",
@@ -148,6 +152,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_open_recent: "最近開いたファイル",
             file_save: "保存",
             file_save_as: "名前を付けて保存...",
+            file_export_html: "HTMLを書き出す...",
             file_clean_unused_assets: "未使用アセットを整理...",
             file_close: "ドキュメントを閉じる",
             edit_undo: "元に戻す",
@@ -197,6 +202,18 @@ fn has_allowed_image_extension(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn has_allowed_export_html_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let lowered = ext.to_ascii_lowercase();
+            ALLOWED_EXPORT_HTML_EXTENSIONS
+                .iter()
+                .any(|allowed| *allowed == lowered)
+        })
+        .unwrap_or(false)
+}
+
 fn validate_path_for_read(path: &Path) -> Result<(), String> {
     if !has_allowed_extension(path) {
         return Err("Unsupported file type".to_string());
@@ -226,6 +243,28 @@ fn validate_path_for_write(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_export_html_path_for_write(path: &Path) -> Result<(), String> {
+    if !has_allowed_export_html_extension(path) {
+        return Err("Unsupported file type".to_string());
+    }
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() {
+            return Err("Symlinks are not allowed".to_string());
+        }
+        if !metadata.is_file() {
+            return Err("Not a regular file".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn normalize_export_html_save_path(mut path: PathBuf) -> PathBuf {
+    if path.extension().is_none() {
+        path.set_extension("html");
+    }
+    path
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MarkdownFile {
@@ -237,6 +276,13 @@ struct MarkdownFile {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SavedMarkdownFile {
+    path: String,
+    name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedHtmlFile {
     path: String,
     name: String,
 }
@@ -298,6 +344,7 @@ pub fn run() {
                     | "file.open_recent.10"
                     | "file.save"
                     | "file.save_as"
+                    | "file.export_html"
                     | "file.clean_unused_assets"
                     | "file.close"
                     | "edit.undo"
@@ -335,6 +382,7 @@ pub fn run() {
             update_recent_menu,
             set_menu_locale,
             save_markdown_file,
+            export_html_file,
             watch_file,
             unwatch_file
         ])
@@ -361,6 +409,13 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
         labels.file_save_as,
         true,
         Some("CmdOrCtrl+Shift+S"),
+    )?;
+    let export_html_file = MenuItem::with_id(
+        app,
+        "file.export_html",
+        labels.file_export_html,
+        true,
+        Some("CmdOrCtrl+Shift+E"),
     )?;
     let clean_unused_assets = MenuItem::with_id(
         app,
@@ -447,6 +502,7 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
             &PredefinedMenuItem::separator(app)?,
             &save_file,
             &save_as_file,
+            &export_html_file,
             &PredefinedMenuItem::separator(app)?,
             &clean_unused_assets,
             &PredefinedMenuItem::separator(app)?,
@@ -634,6 +690,7 @@ fn set_menu_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> 
             set_menu_item_text_in_submenu(file_submenu, "file.open", labels.file_open)?;
             set_menu_item_text_in_submenu(file_submenu, "file.save", labels.file_save)?;
             set_menu_item_text_in_submenu(file_submenu, "file.save_as", labels.file_save_as)?;
+            set_menu_item_text_in_submenu(file_submenu, "file.export_html", labels.file_export_html)?;
             set_menu_item_text_in_submenu(
                 file_submenu,
                 "file.clean_unused_assets",
@@ -735,6 +792,40 @@ fn save_markdown_file(
     watcher::note_self_write(&watcher_state, &path);
 
     Ok(Some(SavedMarkdownFile {
+        name: file_name(&path),
+        path: path.to_string_lossy().into_owned(),
+    }))
+}
+
+#[tauri::command]
+fn export_html_file(
+    path: Option<String>,
+    suggested_name: String,
+    content: String,
+) -> Result<Option<SavedHtmlFile>, String> {
+    let path = match path {
+        Some(path) if !path.trim().is_empty() => {
+            let path_buf = normalize_export_html_save_path(PathBuf::from(path));
+            validate_export_html_path_for_write(&path_buf)?;
+            path_buf
+        }
+        _ => {
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("HTML", &["html", "htm"])
+                .set_file_name(&suggested_name)
+                .save_file()
+            else {
+                return Ok(None);
+            };
+
+            normalize_export_html_save_path(path)
+        }
+    };
+
+    validate_export_html_path_for_write(&path)?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+
+    Ok(Some(SavedHtmlFile {
         name: file_name(&path),
         path: path.to_string_lossy().into_owned(),
     }))

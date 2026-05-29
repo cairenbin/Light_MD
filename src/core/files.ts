@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { MAX_HISTORY_STACK } from "../constants";
+import DOMPurify from "dompurify";
 import {
   confirmCloseSaveButton,
   confirmDialogMessage,
@@ -8,6 +9,8 @@ import {
   titleInput
 } from "../dom";
 import { formatMessage, translate, type TranslationKey } from "../i18n/dictionaries";
+import { renderMarkdownToHtml } from "../editor/markdown-renderer";
+import { buildExportHtmlDocument, toHtmlExportFileName } from "../utils/export-html";
 import {
   persistDraft,
   pushRecentFile,
@@ -37,7 +40,7 @@ import type {
 } from "../types";
 import { buildImageSavePlan, buildMarkdownImageLink } from "../utils/image";
 import { extractMarkdownImageSources } from "../utils/markdown-assets";
-import { normalizeFileName } from "../utils/path";
+import { normalizeFileName, resolveDocumentRelativePath } from "../utils/path";
 import { logError } from "../utils/logger";
 
 export interface FilesControllerDeps {
@@ -65,6 +68,7 @@ export interface FilesController {
   saveDocument: () => Promise<boolean | undefined>;
   saveDocumentAs: () => Promise<boolean | undefined>;
   saveCurrentDocument: (forceDialog?: boolean) => Promise<boolean | undefined>;
+  exportCurrentDocumentAsHtml: () => Promise<boolean | undefined>;
   loadNativeFile: (file: TauriMarkdownFile) => void;
   insertImageFromPath: (path: string) => Promise<boolean>;
   insertImageFromClipboardFile: (file: File) => Promise<boolean>;
@@ -86,6 +90,38 @@ export interface FilesController {
 
 function t(key: TranslationKey): string {
   return translate(state.locale, key);
+}
+
+function isExternalImageSource(value: string): boolean {
+  const lowered = value.trim().toLowerCase();
+  return (
+    lowered.startsWith("http://") ||
+    lowered.startsWith("https://") ||
+    lowered.startsWith("data:") ||
+    lowered.startsWith("blob:") ||
+    lowered.startsWith("mailto:")
+  );
+}
+
+function isAbsoluteNativePath(value: string): boolean {
+  return value.startsWith("/") || /^[a-zA-Z]:[\\/]/u.test(value);
+}
+
+function pathFromFileUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed.toLowerCase().startsWith("file://")) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "file:") {
+      return null;
+    }
+    return decodeURIComponent(url.pathname);
+  } catch {
+    return null;
+  }
 }
 
 export function createFilesController(deps: FilesControllerDeps): FilesController {
@@ -609,6 +645,78 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     }
   }
 
+  async function exportCurrentDocumentAsHtml() {
+    try {
+      const suggestedName = toHtmlExportFileName(state.fileName);
+      const sanitizedHtmlBody = DOMPurify.sanitize(renderMarkdownToHtml(state.content));
+      const htmlContainer = document.createElement("div");
+      htmlContainer.innerHTML = sanitizedHtmlBody;
+      const images = Array.from(htmlContainer.querySelectorAll<HTMLImageElement>("img[src]"));
+
+      for (const image of images) {
+        const source = (image.getAttribute("src") ?? "").trim();
+        if (!source || isExternalImageSource(source)) {
+          continue;
+        }
+
+        const decodedSource = (() => {
+          try {
+            return decodeURIComponent(source);
+          } catch {
+            return source;
+          }
+        })();
+
+        let absolutePath: string | null = null;
+
+        if (state.nativePath) {
+          absolutePath = resolveDocumentRelativePath(state.nativePath, decodedSource);
+        }
+
+        if (!absolutePath) {
+          absolutePath = pathFromFileUrl(decodedSource);
+        }
+
+        if (!absolutePath && isAbsoluteNativePath(decodedSource)) {
+          absolutePath = decodedSource.replaceAll("\\", "/");
+        }
+
+        if (!absolutePath) {
+          continue;
+        }
+
+        try {
+          const dataUrl = await invoke<string>("read_image_as_data_url", { path: absolutePath });
+          image.setAttribute("src", dataUrl);
+        } catch {
+          // Keep original source when inline conversion fails.
+        }
+      }
+
+      const htmlDocument = buildExportHtmlDocument({
+        title: state.fileName,
+        bodyHtml: htmlContainer.innerHTML
+      });
+
+      const exportedFile = await invoke<TauriSavedMarkdownFile | null>("export_html_file", {
+        path: null,
+        suggestedName,
+        content: htmlDocument
+      });
+
+      if (!exportedFile) {
+        return;
+      }
+
+      deps.renderSaveState(formatMessage(t("state.exportHtmlSaved"), { name: exportedFile.name }));
+      return true;
+    } catch (error) {
+      logError("exportCurrentDocumentAsHtml failed", error);
+      deps.renderSaveState(t("state.exportHtmlFailed"));
+      return false;
+    }
+  }
+
   function loadNativeFile(file: TauriMarkdownFile) {
     pushRecentFile(file.path);
     const existingIndex = state.openFiles.findIndex((item) => item.nativePath === file.path);
@@ -821,6 +929,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     saveDocument,
     saveDocumentAs,
     saveCurrentDocument,
+    exportCurrentDocumentAsHtml,
     loadNativeFile,
     insertImageFromPath,
     insertImageFromClipboardFile,

@@ -68,6 +68,8 @@ export type TranslationKey =
   | "state.imageInsertFailed"
   | "state.assetsCleaned"
   | "state.assetsCleanFailed"
+  | "state.exportHtmlSaved"
+  | "state.exportHtmlFailed"
   | "stats.words"
   | "stats.chars"
   | "stats.lines";
@@ -142,6 +144,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "Could not insert image",
     "state.assetsCleaned": "Moved {count} unused assets to Trash",
     "state.assetsCleanFailed": "Could not clean unused assets",
+    "state.exportHtmlSaved": "Exported HTML: {name}",
+    "state.exportHtmlFailed": "Could not export HTML",
     "stats.words": "words",
     "stats.chars": "chars",
     "stats.lines": "lines"
@@ -213,6 +217,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "插入图片失败",
     "state.assetsCleaned": "已将 {count} 个未引用资源移到回收站",
     "state.assetsCleanFailed": "清理未引用资源失败",
+    "state.exportHtmlSaved": "已导出 HTML：{name}",
+    "state.exportHtmlFailed": "导出 HTML 失败",
     "stats.words": "词",
     "stats.chars": "字符",
     "stats.lines": "行"
@@ -284,6 +290,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "画像を挿入できませんでした",
     "state.assetsCleaned": "未使用アセット {count} 件をゴミ箱へ移動しました",
     "state.assetsCleanFailed": "未使用アセットをクリーンできませんでした",
+    "state.exportHtmlSaved": "HTML を書き出しました: {name}",
+    "state.exportHtmlFailed": "HTML を書き出せませんでした",
     "stats.words": "語",
     "stats.chars": "文字",
     "stats.lines": "行"

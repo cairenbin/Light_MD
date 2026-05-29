@@ -3,8 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import hljs from "highlight.js/lib/common";
-import { marked } from "marked";
+import { renderMarkdownToHtml } from "./editor/markdown-renderer";
 import "./styles.css";
 
 import type {
@@ -82,43 +81,6 @@ import {
   wordStat,
   workspace
 } from "./dom";
-
-marked.use({
-  gfm: true,
-  breaks: false
-});
-
-function parseCodeFenceLanguage(lang: string | undefined): string {
-  const raw = (lang ?? "").trim().toLowerCase();
-
-  if (!raw) {
-    return "";
-  }
-
-  const firstToken = raw.split(/\s+/u)[0];
-  return firstToken.replace(/[{}]/gu, "");
-}
-
-marked.use({
-  renderer: {
-    code({ text, lang }) {
-      const trimmedLang = parseCodeFenceLanguage(lang);
-
-      if (trimmedLang && hljs.getLanguage(trimmedLang)) {
-        const highlighted = hljs.highlight(text, { language: trimmedLang, ignoreIllegals: true }).value;
-        return `<pre><code class="hljs language-${escapeAttribute(trimmedLang)}">${highlighted}</code></pre>\n`;
-      }
-
-      if (trimmedLang) {
-        const autoHighlighted = hljs.highlightAuto(text);
-        const detectedClass = autoHighlighted.language ? ` language-${escapeAttribute(autoHighlighted.language)}` : "";
-        return `<pre><code class="hljs${detectedClass}">${autoHighlighted.value}</code></pre>\n`;
-      }
-
-      return `<pre><code>${escapeHtml(text)}</code></pre>\n`;
-    }
-  }
-});
 
 function t(key: TranslationKey) {
   return translate(state.locale, key);
@@ -861,7 +823,7 @@ globalEventListeners.push({ target: document, type: "click", listener: documentC
 
 function render() {
   renderLocale();
-  preview.innerHTML = DOMPurify.sanitize(marked.parse(state.content, { async: false }));
+  preview.innerHTML = DOMPurify.sanitize(renderMarkdownToHtml(state.content));
   void rewritePreviewImageSources();
   renderStats();
   renderMode();
@@ -1120,6 +1082,9 @@ async function setupMenuListener() {
         break;
       case "file.save_as":
         await filesController.saveDocumentAs();
+        break;
+      case "file.export_html":
+        await filesController.exportCurrentDocumentAsHtml();
         break;
       case "file.clean_unused_assets":
         await filesController.cleanUnusedAssetsForCurrentDocument();
