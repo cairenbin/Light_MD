@@ -31,6 +31,10 @@ All notable changes to this project will be documented in this file.
 - `File > Clean Unused Assets...` to clean unreferenced assets for the current document scope only.
 - Native command support for image preview fallback via data URL (`read_image_as_data_url`).
 - Native app menu localization command (`set_menu_locale`) and localized custom Edit menu actions (`Undo/Redo/Cut/Copy/Paste/Select All`).
+- `File > Export HTML...` with single-file export support and local image inlining (`data:` URLs) for portable offline viewing.
+- `File > Export PDF...` (standard mode) with white-background document output and improved block-aware pagination.
+- New shared Markdown renderer module to keep preview and export rendering behavior consistent.
+- macOS release workflow updates for arm64/x64 builds on modern GitHub runners, with release asset renaming and tag-based app version sync.
 
 ### Changed
 
@@ -47,6 +51,9 @@ All notable changes to this project will be documented in this file.
 - Expanded localization coverage for newly added editor actions and find/replace UI copy in English, Chinese, and Japanese.
 - Extended native menu localization to cover custom menu items under File/Edit/Formatting/View/Help.
 - Startup flow now refreshes the active saved document once to stabilize first-render preview behavior for local images.
+- Export output style aligned to a neutral document format (white background, black text) for printable/shareable HTML and PDF files.
+- PDF export layout refined to reduce heading/content separation across page boundaries and reduce large-image split artifacts.
+- macOS CI pipeline now targets release/tag flows with updated Node 24-compatible GitHub Action runtime settings.
 
 ### Security
 
@@ -78,6 +85,9 @@ All notable changes to this project will be documented in this file.
 - Fixed replace panel layout breakage under multilingual labels, especially in English/Japanese compact widths.
 - Fixed a startup preview issue where local images could fail to render until the file was reopened.
 - Fixed first-open image rendering reliability by combining `convertFileSrc` with data-URL fallback.
+- Fixed HTML export image path issues that caused broken relative image links after opening exported files directly.
+- Fixed PDF export rendering regressions (blank pages and unstable pagination path) by switching to a stable canvas-based export path with smarter page-break selection.
+- Fixed topbar responsive recalculation so toolbar layout reliably recovers after repeated narrow/wide window resizing.
 
 ### Notes
 

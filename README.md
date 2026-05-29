@@ -11,6 +11,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Markdown editing with live rendered preview.
 - `Write`, `Split`, and `Read` viewing modes.
 - Native desktop `Open`, `Save`, and `Save As...`.
+- Native export actions: `Export HTML...` and `Export PDF...`.
 - Multi-document session handling with an open documents drawer.
 - Multi-draft persistence and session restore across app restarts.
 - Light and dark themes.
@@ -22,6 +23,8 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - `File > Open Recent` with real filename + path history entries (up to 10).
 - Formatting toolbar actions (`Bold`, `Italic`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
 - Image paste/drag support: image files are copied into document-scoped `assets/<document-name>/` and inserted as Markdown links.
+- HTML export inlines local images so exported single-file documents remain viewable offline.
+- Standard PDF export with block-aware pagination tuned for long Markdown documents.
 - `File > Clean Unused Assets...` to safely move unreferenced current-document assets to Trash/Recycle Bin.
 - Native app menu localization follows in-app language for custom menu items (English, 中文, 日本語).
 - Settings panel for theme, zoom, and autocomplete shortcut preferences.
@@ -82,6 +85,12 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setu
 ## Status
 
 The project is in alpha-stage development. It already supports basic Markdown editing workflows, but the app is still evolving and not yet positioned as a finished stable release.
+
+## Release Workflow
+
+- Packaging CI is intentionally scoped to release flow only.
+- macOS build workflow is triggered by `release` branch pushes and `v*` tags (not by regular `master` pushes).
+- About/version metadata is synchronized from release tag versions during tag-based builds.
 
 ## License
 

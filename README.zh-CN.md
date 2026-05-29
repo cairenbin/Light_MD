@@ -11,6 +11,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - Markdown 编辑与实时渲染预览。
 - `Write`、`Split`、`Read` 三种视图模式。
 - 原生桌面 `Open`、`Save`、`Save As...`。
+- 原生导出能力：`Export HTML...` 与 `Export PDF...`。
 - 多文档会话与打开文档抽屉。
 - 多草稿持久化与应用重启后的会话恢复。
 - 明亮 / 暗黑主题。
@@ -22,6 +23,8 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - `File > Open Recent` 最近文件历史（真实文件名 + 路径，最多 10 条）。
 - 格式化工具按钮（`Bold`、`Italic`、`Link`、`Code`、`Quote`）以及原生 `Formatting` 菜单支持。
 - 支持图片粘贴 / 拖入：图片会写入当前文档作用域目录 `assets/<文档名>/`，并自动插入 Markdown 图片链接。
+- HTML 导出会内嵌本地图片，导出的单文件可离线直接查看。
+- 标准 PDF 导出，包含面向长文档的块级分页优化。
 - `File > Clean Unused Assets...`：仅扫描当前文档作用域资源，将未引用图片安全移动到回收站（非物理删除）。
 - 原生菜单自定义项支持跟随应用语言切换（`English`、`中文`、`日本語`）。
 - 设置面板支持主题、缩放与自动完成快捷键偏好设置。
@@ -82,6 +85,12 @@ npm run tauri:dev
 ## 项目状态
 
 项目目前处于 alpha 阶段。已具备基础 Markdown 编辑工作流，但仍在持续迭代中，暂未定位为稳定正式版。
+
+## 发布流程
+
+- 打包 CI 仅面向发布流程触发。
+- macOS 构建工作流仅在 `release` 分支提交和 `v*` tag 推送时触发（常规 `master` 提交不触发）。
+- tag 触发构建时，应用 About 版本会与 tag 版本自动同步。
 
 ## 许可证
 
