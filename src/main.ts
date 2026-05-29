@@ -1086,6 +1086,9 @@ async function setupMenuListener() {
       case "file.export_html":
         await filesController.exportCurrentDocumentAsHtml();
         break;
+      case "file.export_pdf":
+        await filesController.exportCurrentDocumentAsPdf();
+        break;
       case "file.clean_unused_assets":
         await filesController.cleanUnusedAssetsForCurrentDocument();
         break;

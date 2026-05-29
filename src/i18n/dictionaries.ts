@@ -70,6 +70,8 @@ export type TranslationKey =
   | "state.assetsCleanFailed"
   | "state.exportHtmlSaved"
   | "state.exportHtmlFailed"
+  | "state.exportPdfSaved"
+  | "state.exportPdfFailed"
   | "stats.words"
   | "stats.chars"
   | "stats.lines";
@@ -146,6 +148,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.assetsCleanFailed": "Could not clean unused assets",
     "state.exportHtmlSaved": "Exported HTML: {name}",
     "state.exportHtmlFailed": "Could not export HTML",
+    "state.exportPdfSaved": "Exported PDF: {name}",
+    "state.exportPdfFailed": "Could not export PDF",
     "stats.words": "words",
     "stats.chars": "chars",
     "stats.lines": "lines"
@@ -219,6 +223,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.assetsCleanFailed": "清理未引用资源失败",
     "state.exportHtmlSaved": "已导出 HTML：{name}",
     "state.exportHtmlFailed": "导出 HTML 失败",
+    "state.exportPdfSaved": "已导出 PDF：{name}",
+    "state.exportPdfFailed": "导出 PDF 失败",
     "stats.words": "词",
     "stats.chars": "字符",
     "stats.lines": "行"
@@ -292,6 +298,8 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.assetsCleanFailed": "未使用アセットをクリーンできませんでした",
     "state.exportHtmlSaved": "HTML を書き出しました: {name}",
     "state.exportHtmlFailed": "HTML を書き出せませんでした",
+    "state.exportPdfSaved": "PDF を書き出しました: {name}",
+    "state.exportPdfFailed": "PDF を書き出せませんでした",
     "stats.words": "語",
     "stats.chars": "文字",
     "stats.lines": "行"

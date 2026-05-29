@@ -59,6 +59,11 @@ export type TauriSavedMarkdownFile = {
   name: string;
 };
 
+export type TauriSavedPdfFile = {
+  path: string;
+  name: string;
+};
+
 export type TauriSavedImageAsset = {
   fileName: string;
   relativePath: string;

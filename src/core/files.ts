@@ -11,6 +11,7 @@ import {
 import { formatMessage, translate, type TranslationKey } from "../i18n/dictionaries";
 import { renderMarkdownToHtml } from "../editor/markdown-renderer";
 import { buildExportHtmlDocument, toHtmlExportFileName } from "../utils/export-html";
+import { renderHtmlToPdfBytes, toPdfExportFileName } from "../utils/export-pdf";
 import {
   persistDraft,
   pushRecentFile,
@@ -35,6 +36,7 @@ import type {
   EditorSelectionEdit,
   OpenFile,
   TauriMarkdownFile,
+  TauriSavedPdfFile,
   TauriSavedImageAsset,
   TauriSavedMarkdownFile
 } from "../types";
@@ -69,6 +71,7 @@ export interface FilesController {
   saveDocumentAs: () => Promise<boolean | undefined>;
   saveCurrentDocument: (forceDialog?: boolean) => Promise<boolean | undefined>;
   exportCurrentDocumentAsHtml: () => Promise<boolean | undefined>;
+  exportCurrentDocumentAsPdf: () => Promise<boolean | undefined>;
   loadNativeFile: (file: TauriMarkdownFile) => void;
   insertImageFromPath: (path: string) => Promise<boolean>;
   insertImageFromClipboardFile: (file: File) => Promise<boolean>;
@@ -717,6 +720,78 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     }
   }
 
+  async function exportCurrentDocumentAsPdf() {
+    try {
+      const suggestedName = toPdfExportFileName(state.fileName);
+      const sanitizedHtmlBody = DOMPurify.sanitize(renderMarkdownToHtml(state.content));
+      const htmlContainer = document.createElement("div");
+      htmlContainer.innerHTML = sanitizedHtmlBody;
+      const images = Array.from(htmlContainer.querySelectorAll<HTMLImageElement>("img[src]"));
+
+      for (const image of images) {
+        const source = (image.getAttribute("src") ?? "").trim();
+        if (!source || isExternalImageSource(source)) {
+          continue;
+        }
+
+        const decodedSource = (() => {
+          try {
+            return decodeURIComponent(source);
+          } catch {
+            return source;
+          }
+        })();
+
+        let absolutePath: string | null = null;
+
+        if (state.nativePath) {
+          absolutePath = resolveDocumentRelativePath(state.nativePath, decodedSource);
+        }
+
+        if (!absolutePath) {
+          absolutePath = pathFromFileUrl(decodedSource);
+        }
+
+        if (!absolutePath && isAbsoluteNativePath(decodedSource)) {
+          absolutePath = decodedSource.replaceAll("\\", "/");
+        }
+
+        if (!absolutePath) {
+          continue;
+        }
+
+        try {
+          const dataUrl = await invoke<string>("read_image_as_data_url", { path: absolutePath });
+          image.setAttribute("src", dataUrl);
+        } catch {
+          // Keep original source when inline conversion fails.
+        }
+      }
+
+      const pdfBytes = await renderHtmlToPdfBytes({
+        title: state.fileName,
+        bodyHtml: htmlContainer.innerHTML
+      });
+
+      const exportedFile = await invoke<TauriSavedPdfFile | null>("export_pdf_file", {
+        path: null,
+        suggestedName,
+        bytes: Array.from(pdfBytes)
+      });
+
+      if (!exportedFile) {
+        return;
+      }
+
+      deps.renderSaveState(formatMessage(t("state.exportPdfSaved"), { name: exportedFile.name }));
+      return true;
+    } catch (error) {
+      logError("exportCurrentDocumentAsPdf failed", error);
+      deps.renderSaveState(t("state.exportPdfFailed"));
+      return false;
+    }
+  }
+
   function loadNativeFile(file: TauriMarkdownFile) {
     pushRecentFile(file.path);
     const existingIndex = state.openFiles.findIndex((item) => item.nativePath === file.path);
@@ -930,6 +1005,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     saveDocumentAs,
     saveCurrentDocument,
     exportCurrentDocumentAsHtml,
+    exportCurrentDocumentAsPdf,
     loadNativeFile,
     insertImageFromPath,
     insertImageFromClipboardFile,
