@@ -17,6 +17,7 @@ import { translate, type TranslationKey } from "./i18n/dictionaries";
 import { escapeAttribute, escapeHtml } from "./utils/html";
 import { resolveLinkAction } from "./utils/link";
 import { documentInitial, formatPathForDisplay, normalizeFileName, resolveDocumentRelativePath } from "./utils/path";
+import { htmlToMarkdown } from "./utils/html-to-markdown";
 import { isImagePath } from "./utils/image";
 import { isMacPlatform } from "./utils/platform";
 import {
@@ -574,12 +575,28 @@ editor.addEventListener("paste", (event) => {
   const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
   const file = imageItem?.getAsFile();
 
-  if (!file) {
+  if (file) {
+    event.preventDefault();
+    void filesController.insertImageFromClipboardFile(file);
+    return;
+  }
+
+  const html = event.clipboardData?.getData("text/html");
+
+  if (!html || !html.trim()) {
+    return;
+  }
+
+  const markdown = htmlToMarkdown(html);
+
+  if (!markdown) {
     return;
   }
 
   event.preventDefault();
-  void filesController.insertImageFromClipboardFile(file);
+  const start = editor.selectionStart ?? 0;
+  const end = editor.selectionEnd ?? start;
+  filesController.applyEditorEdit({ start, end, text: markdown });
 });
 
 editor.addEventListener("keyup", (event) => {

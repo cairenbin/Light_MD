@@ -491,7 +491,10 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
     )?;
     let edit_cut = MenuItem::with_id(app, "edit.cut", labels.edit_cut, true, Some("CmdOrCtrl+X"))?;
     let edit_copy = MenuItem::with_id(app, "edit.copy", labels.edit_copy, true, Some("CmdOrCtrl+C"))?;
-    let edit_paste = MenuItem::with_id(app, "edit.paste", labels.edit_paste, true, Some("CmdOrCtrl+V"))?;
+    // No accelerator: Cmd/Ctrl+V is left to the webview's native paste event so the
+    // editor's paste handler can read text/html from the clipboard and convert it to
+    // Markdown. The menu item stays clickable (plain-text paste via the clipboard API).
+    let edit_paste = MenuItem::with_id(app, "edit.paste", labels.edit_paste, true, None::<&str>)?;
     let edit_select_all = MenuItem::with_id(
         app,
         "edit.select_all",
