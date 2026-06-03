@@ -23,6 +23,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - `File > Open Recent` with real filename + path history entries (up to 10).
 - Formatting toolbar actions (`Bold`, `Italic`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
 - Image paste/drag support: image files are copied into document-scoped `assets/<document-name>/` and inserted as Markdown links.
+- Paste-as-Markdown: clipboard content with an HTML flavor (copied from web pages or rich-text apps) is converted to Markdown on paste; plain-text and image pastes are unaffected.
 - HTML export inlines local images so exported single-file documents remain viewable offline.
 - Standard PDF export with block-aware pagination tuned for long Markdown documents.
 - `File > Clean Unused Assets...` to safely move unreferenced current-document assets to Trash/Recycle Bin.
@@ -39,6 +40,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - TypeScript and Vite for the editor UI.
 - Rust for native commands and file operations.
 - `marked` for Markdown rendering.
+- `turndown` (with the GFM plugin) for converting pasted HTML to Markdown.
 - `DOMPurify` for preview sanitization.
 - Vitest for unit tests on extracted helpers.
 - ESLint and Prettier for code style.

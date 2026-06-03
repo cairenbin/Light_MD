@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - File menu `Open Recent` history with real filename + full path labels (up to 10 entries).
 - Formatting toolbar actions and dedicated native `Formatting` menu (`Bold`, `Italic`, `Link`, `Code`, `Quote`).
 - Image paste and drag-to-insert workflow for local files, with markdown link insertion.
+- Paste-as-Markdown: pasting clipboard content that carries an HTML flavor (from web pages or rich-text apps) is converted to Markdown via Turndown + GFM; plain-text and image pastes are unaffected.
 - Document-scoped asset storage (`assets/<document-stem>/...`) for inserted images.
 - `File > Clean Unused Assets...` to clean unreferenced assets for the current document scope only.
 - Native command support for image preview fallback via data URL (`read_image_as_data_url`).
@@ -54,6 +55,7 @@ All notable changes to this project will be documented in this file.
 - Export output style aligned to a neutral document format (white background, black text) for printable/shareable HTML and PDF files.
 - PDF export layout refined to reduce heading/content separation across page boundaries and reduce large-image split artifacts.
 - macOS CI pipeline now targets release/tag flows with updated Node 24-compatible GitHub Action runtime settings.
+- Dropped the `Cmd/Ctrl+V` accelerator from the native `Edit > Paste` menu item so the shortcut reaches the webview paste event (which can read clipboard HTML); the menu item stays clickable for plain-text paste.
 
 ### Security
 
@@ -83,8 +85,7 @@ All notable changes to this project will be documented in this file.
 - Fixed keyboard interaction for autocomplete and insert overlays (focus handling, arrow navigation, and escape behavior).
 - Fixed find result index display edge cases (for example `1/1` initialization when the first match is already active).
 - Fixed replace panel layout breakage under multilingual labels, especially in English/Japanese compact widths.
-- Fixed a startup preview issue where local images could fail to render until the file was reopened.
-- Fixed first-open image rendering reliability by combining `convertFileSrc` with data-URL fallback.
+- Fixed local images failing to render on first startup until the file was edited or reopened: the preview image rewrite ran before its sequence counter was declared and aborted on a temporal-dead-zone `ReferenceError`. The counter is now hoisted, and the unloadable `asset://` intermediate `src` was dropped in favor of a direct data-URL rewrite.
 - Fixed HTML export image path issues that caused broken relative image links after opening exported files directly.
 - Fixed PDF export rendering regressions (blank pages and unstable pagination path) by switching to a stable canvas-based export path with smarter page-break selection.
 - Fixed topbar responsive recalculation so toolbar layout reliably recovers after repeated narrow/wide window resizing.

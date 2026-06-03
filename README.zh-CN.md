@@ -23,6 +23,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - `File > Open Recent` 最近文件历史（真实文件名 + 路径，最多 10 条）。
 - 格式化工具按钮（`Bold`、`Italic`、`Link`、`Code`、`Quote`）以及原生 `Formatting` 菜单支持。
 - 支持图片粘贴 / 拖入：图片会写入当前文档作用域目录 `assets/<文档名>/`，并自动插入 Markdown 图片链接。
+- 粘贴为 Markdown：当剪贴板包含 HTML 内容（从网页或富文本应用复制）时，粘贴会自动转换为 Markdown；纯文本与图片粘贴不受影响。
 - HTML 导出会内嵌本地图片，导出的单文件可离线直接查看。
 - 标准 PDF 导出，包含面向长文档的块级分页优化。
 - `File > Clean Unused Assets...`：仅扫描当前文档作用域资源，将未引用图片安全移动到回收站（非物理删除）。
@@ -39,6 +40,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - TypeScript + Vite（编辑器 UI）
 - Rust（原生命令与文件操作）
 - `marked`（Markdown 渲染）
+- `turndown`（含 GFM 插件，将粘贴的 HTML 转换为 Markdown）
 - `DOMPurify`（预览内容净化）
 - Vitest（对抽离出的纯函数模块做单元测试）
 - ESLint + Prettier（代码风格统一）
