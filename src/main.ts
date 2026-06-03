@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -88,6 +88,7 @@ function t(key: TranslationKey) {
 
 let pendingTopbarLayoutFrame: number | null = null;
 let pendingTopbarLayoutPostFrame: number | null = null;
+let previewRewriteSequence = 0;
 
 function hasWrappedChildren(container: HTMLElement): boolean {
   const children = Array.from(container.children).filter(
@@ -875,8 +876,6 @@ async function syncNativeMenuLocale(locale: Locale) {
   }
 }
 
-let previewRewriteSequence = 0;
-
 async function rewritePreviewImageSources() {
   if (!state.nativePath) {
     return;
@@ -900,8 +899,6 @@ async function rewritePreviewImageSources() {
       continue;
     }
 
-    image.setAttribute("src", convertFileSrc(absolutePath));
-
     tasks.push(
       invoke<string>("read_image_as_data_url", { path: absolutePath })
         .then((dataUrl) => {
@@ -911,7 +908,7 @@ async function rewritePreviewImageSources() {
           image.setAttribute("src", dataUrl);
         })
         .catch(() => {
-          // Keep convertFileSrc source when data-url fallback fails.
+          // Keep original source when data-url conversion fails.
         })
     );
   }
