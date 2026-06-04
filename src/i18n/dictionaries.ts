@@ -68,6 +68,10 @@ export type TranslationKey =
   | "state.imageInsertFailed"
   | "state.assetsCleaned"
   | "state.assetsCleanFailed"
+  | "state.imagesDownloading"
+  | "state.imagesDownloaded"
+  | "state.imagesDownloadNone"
+  | "state.imagesDownloadFailed"
   | "state.exportHtmlSaved"
   | "state.exportHtmlFailed"
   | "state.exportPdfSaved"
@@ -146,6 +150,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "Could not insert image",
     "state.assetsCleaned": "Moved {count} unused assets to Trash",
     "state.assetsCleanFailed": "Could not clean unused assets",
+    "state.imagesDownloading": "Downloading remote images...",
+    "state.imagesDownloaded": "Downloaded {done} of {total} remote images",
+    "state.imagesDownloadNone": "No remote images to download",
+    "state.imagesDownloadFailed": "Could not download remote images",
     "state.exportHtmlSaved": "Exported HTML: {name}",
     "state.exportHtmlFailed": "Could not export HTML",
     "state.exportPdfSaved": "Exported PDF: {name}",
@@ -221,6 +229,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "插入图片失败",
     "state.assetsCleaned": "已将 {count} 个未引用资源移到回收站",
     "state.assetsCleanFailed": "清理未引用资源失败",
+    "state.imagesDownloading": "正在下载远程图片……",
+    "state.imagesDownloaded": "已下载 {done} / {total} 张远程图片",
+    "state.imagesDownloadNone": "没有需要下载的远程图片",
+    "state.imagesDownloadFailed": "下载远程图片失败",
     "state.exportHtmlSaved": "已导出 HTML：{name}",
     "state.exportHtmlFailed": "导出 HTML 失败",
     "state.exportPdfSaved": "已导出 PDF：{name}",
@@ -296,6 +308,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "state.imageInsertFailed": "画像を挿入できませんでした",
     "state.assetsCleaned": "未使用アセット {count} 件をゴミ箱へ移動しました",
     "state.assetsCleanFailed": "未使用アセットをクリーンできませんでした",
+    "state.imagesDownloading": "リモート画像をダウンロード中……",
+    "state.imagesDownloaded": "リモート画像 {done} / {total} 件をダウンロードしました",
+    "state.imagesDownloadNone": "ダウンロードするリモート画像がありません",
+    "state.imagesDownloadFailed": "リモート画像をダウンロードできませんでした",
     "state.exportHtmlSaved": "HTML を書き出しました: {name}",
     "state.exportHtmlFailed": "HTML を書き出せませんでした",
     "state.exportPdfSaved": "PDF を書き出しました: {name}",

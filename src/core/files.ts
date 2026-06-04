@@ -41,7 +41,11 @@ import type {
   TauriSavedMarkdownFile
 } from "../types";
 import { buildImageSavePlan, buildMarkdownImageLink } from "../utils/image";
-import { extractMarkdownImageSources } from "../utils/markdown-assets";
+import {
+  extractMarkdownImagePaths,
+  extractMarkdownImageSources,
+  replaceMarkdownImageSources
+} from "../utils/markdown-assets";
 import { normalizeFileName, resolveDocumentRelativePath } from "../utils/path";
 import { logError } from "../utils/logger";
 
@@ -76,6 +80,7 @@ export interface FilesController {
   insertImageFromPath: (path: string) => Promise<boolean>;
   insertImageFromClipboardFile: (file: File) => Promise<boolean>;
   cleanUnusedAssetsForCurrentDocument: () => Promise<boolean>;
+  downloadRemoteImagesForCurrentDocument: () => Promise<boolean>;
 
   selectOpenFile: (fileId: string) => void;
   requestCloseFile: (fileId: string) => Promise<void>;
@@ -104,6 +109,11 @@ function isExternalImageSource(value: string): boolean {
     lowered.startsWith("blob:") ||
     lowered.startsWith("mailto:")
   );
+}
+
+function isRemoteHttpSource(value: string): boolean {
+  const lowered = value.trim().toLowerCase();
+  return lowered.startsWith("http://") || lowered.startsWith("https://");
 }
 
 function isAbsoluteNativePath(value: string): boolean {
@@ -395,6 +405,69 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       deps.renderSaveState(t("state.assetsCleanFailed"));
       return false;
     }
+  }
+
+  async function downloadRemoteImagesForCurrentDocument(): Promise<boolean> {
+    const documentPath = getImageTargetDocumentPath();
+
+    if (!documentPath) {
+      return false;
+    }
+
+    const remoteUrls = extractMarkdownImagePaths(state.content).filter(isRemoteHttpSource);
+
+    if (remoteUrls.length === 0) {
+      deps.renderSaveState(t("state.imagesDownloadNone"));
+      return false;
+    }
+
+    deps.renderSaveState(t("state.imagesDownloading"));
+
+    // Downloads run in the Rust process, so they bypass the webview CSP that
+    // blocks remote https images. Each saved asset maps its original URL to a
+    // local relative path; failures are skipped so one bad URL never aborts the
+    // rest.
+    const mapping = new Map<string, string>();
+    const downloadDate = new Date();
+
+    for (let index = 0; index < remoteUrls.length; index += 1) {
+      const url = remoteUrls[index];
+      const plan = buildImageSavePlan({
+        markdownPath: documentPath,
+        sourceName: url,
+        date: downloadDate
+      });
+      const fileStem = `${plan.fileName.replace(/\.[^.]+$/u, "")}-${index + 1}`;
+
+      try {
+        const savedAsset = await invoke<TauriSavedImageAsset>("download_remote_image", {
+          documentPath,
+          url,
+          fileStem
+        });
+        mapping.set(url, savedAsset.relativePath);
+      } catch (error) {
+        logError("download_remote_image failed", error);
+      }
+    }
+
+    if (mapping.size === 0) {
+      deps.renderSaveState(t("state.imagesDownloadFailed"));
+      return false;
+    }
+
+    const nextContent = replaceMarkdownImageSources(state.content, mapping);
+    if (nextContent !== state.content) {
+      applyEditorEdit({ start: 0, end: editor.value.length, text: nextContent });
+    }
+
+    deps.renderSaveState(
+      formatMessage(t("state.imagesDownloaded"), {
+        done: String(mapping.size),
+        total: String(remoteUrls.length)
+      })
+    );
+    return true;
   }
 
   function syncTextFieldState(target: HTMLInputElement | HTMLTextAreaElement) {
@@ -1010,6 +1083,7 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     insertImageFromPath,
     insertImageFromClipboardFile,
     cleanUnusedAssetsForCurrentDocument,
+    downloadRemoteImagesForCurrentDocument,
     selectOpenFile,
     requestCloseFile,
     requestCloseActiveFile,

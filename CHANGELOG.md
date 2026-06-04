@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 - Paste-as-Markdown: pasting clipboard content that carries an HTML flavor (from web pages or rich-text apps) is converted to Markdown via Turndown + GFM; plain-text and image pastes are unaffected.
 - Document-scoped asset storage (`assets/<document-stem>/...`) for inserted images.
 - `File > Clean Unused Assets...` to clean unreferenced assets for the current document scope only.
+- `File > Download Remote Images...` to fetch remote `http(s)` images referenced in the current document into scoped assets and rewrite the links to local paths (fetched in the Rust process to bypass the webview image CSP); partial failures are skipped and reported.
 - Native command support for image preview fallback via data URL (`read_image_as_data_url`).
 - Native app menu localization command (`set_menu_locale`) and localized custom Edit menu actions (`Undo/Redo/Cut/Copy/Paste/Select All`).
 - `File > Export HTML...` with single-file export support and local image inlining (`data:` URLs) for portable offline viewing.

@@ -27,6 +27,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - HTML export inlines local images so exported single-file documents remain viewable offline.
 - Standard PDF export with block-aware pagination tuned for long Markdown documents.
 - `File > Clean Unused Assets...` to safely move unreferenced current-document assets to Trash/Recycle Bin.
+- `File > Download Remote Images...` to fetch remote `http(s)` images in the current document into scoped assets and rewrite the links to local paths (so they display under the editor's image CSP); failed downloads are skipped and reported.
 - Native app menu localization follows in-app language for custom menu items (English, 中文, 日本語).
 - Settings panel for theme, zoom, and autocomplete shortcut preferences.
 - Built-in UI language switching (`English`, `中文`, `日本語`) from Settings.

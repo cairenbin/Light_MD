@@ -3,6 +3,7 @@ mod watcher;
 use serde::Serialize;
 use std::fs;
 use std::collections::HashSet;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use base64::Engine;
@@ -37,6 +38,7 @@ struct MenuLabels {
     file_export_html: &'static str,
     file_export_pdf: &'static str,
     file_clean_unused_assets: &'static str,
+    file_download_remote_images: &'static str,
     file_close: &'static str,
     edit_undo: &'static str,
     edit_redo: &'static str,
@@ -85,6 +87,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_export_html: "Export HTML...",
             file_export_pdf: "Export PDF...",
             file_clean_unused_assets: "Clean Unused Assets...",
+            file_download_remote_images: "Download Remote Images...",
             file_close: "Close Document",
             edit_undo: "Undo",
             edit_redo: "Redo",
@@ -122,6 +125,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_export_html: "导出 HTML...",
             file_export_pdf: "导出 PDF...",
             file_clean_unused_assets: "清理未使用资源...",
+            file_download_remote_images: "下载远程图片...",
             file_close: "关闭文档",
             edit_undo: "撤销",
             edit_redo: "重做",
@@ -159,6 +163,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             file_export_html: "HTMLを書き出す...",
             file_export_pdf: "PDFを書き出す...",
             file_clean_unused_assets: "未使用アセットを整理...",
+            file_download_remote_images: "リモート画像をダウンロード...",
             file_close: "ドキュメントを閉じる",
             edit_undo: "元に戻す",
             edit_redo: "やり直し",
@@ -393,6 +398,7 @@ pub fn run() {
                     | "file.export_html"
                     | "file.export_pdf"
                     | "file.clean_unused_assets"
+                    | "file.download_remote_images"
                     | "file.close"
                     | "edit.undo"
                     | "edit.redo"
@@ -424,6 +430,7 @@ pub fn run() {
             open_markdown_file_from_path,
             copy_image_to_assets,
             save_image_to_assets,
+            download_remote_image,
             read_image_as_data_url,
             clean_unused_assets_for_document,
             update_recent_menu,
@@ -476,6 +483,13 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
         app,
         "file.clean_unused_assets",
         labels.file_clean_unused_assets,
+        true,
+        None::<&str>,
+    )?;
+    let download_remote_images = MenuItem::with_id(
+        app,
+        "file.download_remote_images",
+        labels.file_download_remote_images,
         true,
         None::<&str>,
     )?;
@@ -564,6 +578,7 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
             &export_pdf_file,
             &PredefinedMenuItem::separator(app)?,
             &clean_unused_assets,
+            &download_remote_images,
             &PredefinedMenuItem::separator(app)?,
             &close_file,
             #[cfg(not(target_os = "macos"))]
@@ -756,6 +771,11 @@ fn set_menu_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> 
                 "file.clean_unused_assets",
                 labels.file_clean_unused_assets,
             )?;
+            set_menu_item_text_in_submenu(
+                file_submenu,
+                "file.download_remote_images",
+                labels.file_download_remote_images,
+            )?;
             set_menu_item_text_in_submenu(file_submenu, "file.close", labels.file_close)?;
             set_submenu_text_in_submenu(file_submenu, "file.open_recent", labels.file_open_recent)?;
         }
@@ -947,6 +967,107 @@ fn save_image_to_assets(
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64_data.as_bytes())
         .map_err(|error| error.to_string())?;
+    save_image_bytes_to_assets(&document_path, &target_file_name, &bytes)
+}
+
+/// Maximum size (bytes) we will download for a single remote image. Guards
+/// against pathological or malicious responses filling the disk.
+const MAX_REMOTE_IMAGE_BYTES: usize = 25 * 1024 * 1024;
+
+/// Maps an HTTP `Content-Type` to an allowed image extension, or `None` when
+/// the type is not a supported image. Parameters after `;` (e.g. charset) are
+/// ignored.
+fn image_extension_for_content_type(content_type: &str) -> Option<&'static str> {
+    let main = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    match main.as_str() {
+        "image/png" => Some("png"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "image/bmp" | "image/x-ms-bmp" => Some("bmp"),
+        "image/svg+xml" => Some("svg"),
+        "image/avif" => Some("avif"),
+        _ => None,
+    }
+}
+
+/// Extracts an allowed image extension from a URL's path component, ignoring
+/// any query string or fragment. Returns `None` when absent or unsupported.
+fn image_extension_from_url(url: &str) -> Option<&'static str> {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .trim_end_matches('/');
+    let last_segment = path.rsplit('/').next().unwrap_or("");
+    let ext = Path::new(last_segment)
+        .extension()
+        .and_then(|ext| ext.to_str())?
+        .to_ascii_lowercase();
+    ALLOWED_IMAGE_EXTENSIONS
+        .iter()
+        .find(|allowed| **allowed == ext)
+        .copied()
+}
+
+/// Downloads a remote http(s) image into the document's scoped assets folder.
+///
+/// The request is made from the Rust process, so it bypasses the webview CSP
+/// (`img-src` forbids remote https) and Tauri's HTTP allow-list. The saved
+/// asset becomes a local relative path the preview can render via data URL.
+#[tauri::command]
+fn download_remote_image(
+    document_path: String,
+    url: String,
+    file_stem: String,
+) -> Result<SavedImageAsset, String> {
+    let trimmed = url.trim();
+    let lowered = trimmed.to_ascii_lowercase();
+    if !(lowered.starts_with("http://") || lowered.starts_with("https://")) {
+        return Err("Only http and https image URLs can be downloaded".to_string());
+    }
+
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(std::time::Duration::from_secs(15))
+        .timeout_read(std::time::Duration::from_secs(30))
+        .build();
+
+    let response = agent
+        .get(trimmed)
+        .call()
+        .map_err(|error| format!("Download failed: {error}"))?;
+
+    let content_type_ext = image_extension_for_content_type(response.content_type());
+    if content_type_ext.is_none() {
+        return Err(format!(
+            "Remote resource is not a supported image (Content-Type: {})",
+            response.content_type()
+        ));
+    }
+
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut reader = response.into_reader().take((MAX_REMOTE_IMAGE_BYTES + 1) as u64);
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() > MAX_REMOTE_IMAGE_BYTES {
+        return Err("Remote image exceeds the maximum allowed size".to_string());
+    }
+    if bytes.is_empty() {
+        return Err("Remote image is empty".to_string());
+    }
+
+    let extension = content_type_ext
+        .or_else(|| image_extension_from_url(trimmed))
+        .unwrap_or("png");
+    let stem = sanitize_asset_segment(&file_stem);
+    let target_file_name = format!("{stem}.{extension}");
+
     save_image_bytes_to_assets(&document_path, &target_file_name, &bytes)
 }
 

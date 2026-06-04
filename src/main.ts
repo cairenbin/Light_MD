@@ -1106,6 +1106,9 @@ async function setupMenuListener() {
       case "file.clean_unused_assets":
         await filesController.cleanUnusedAssetsForCurrentDocument();
         break;
+      case "file.download_remote_images":
+        await filesController.downloadRemoteImagesForCurrentDocument();
+        break;
       case "file.close":
         await filesController.requestCloseActiveFile();
         break;
