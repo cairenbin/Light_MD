@@ -1,5 +1,6 @@
 import hljs from "highlight.js/lib/common";
 import { marked } from "marked";
+import markedKatex from "marked-katex-extension";
 import { escapeAttribute, escapeHtml } from "../utils/html";
 
 let markedConfigured = false;
@@ -15,6 +16,66 @@ function parseCodeFenceLanguage(lang: string | undefined): string {
   return firstToken.replace(/[{}]/gu, "");
 }
 
+function isFenceLine(line: string): { marker: "`" | "~"; length: number } | null {
+  const match = line.trimStart().match(/^(`{3,}|~{3,})/u);
+
+  if (!match) {
+    return null;
+  }
+
+  const fence = match[1] ?? "";
+  return {
+    marker: fence[0] === "~" ? "~" : "`",
+    length: fence.length
+  };
+}
+
+function normalizeDisplayMathBlocks(markdown: string): string {
+  const lines = markdown.split("\n");
+  const output: string[] = [];
+  let codeFence: { marker: "`" | "~"; length: number } | null = null;
+  let inDisplayMath = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    const trimmed = line.trim();
+    const fence = isFenceLine(line);
+
+    if (fence) {
+      if (!codeFence) {
+        codeFence = fence;
+      } else if (fence.marker === codeFence.marker && fence.length >= codeFence.length) {
+        codeFence = null;
+      }
+
+      output.push(line);
+      continue;
+    }
+
+    if (!codeFence && trimmed === "$$") {
+      if (!inDisplayMath && output.length > 0 && output[output.length - 1]?.trim() !== "") {
+        output.push("");
+      }
+
+      output.push(line);
+
+      if (inDisplayMath) {
+        const nextLine = lines[index + 1];
+        if (nextLine !== undefined && nextLine.trim() !== "") {
+          output.push("");
+        }
+      }
+
+      inDisplayMath = !inDisplayMath;
+      continue;
+    }
+
+    output.push(line);
+  }
+
+  return output.join("\n");
+}
+
 function ensureMarkedConfigured() {
   if (markedConfigured) {
     return;
@@ -24,6 +85,13 @@ function ensureMarkedConfigured() {
     gfm: true,
     breaks: false
   });
+
+  marked.use(
+    markedKatex({
+      nonStandard: true,
+      throwOnError: false
+    })
+  );
 
   marked.use({
     renderer: {
@@ -51,5 +119,5 @@ function ensureMarkedConfigured() {
 
 export function renderMarkdownToHtml(markdown: string): string {
   ensureMarkedConfigured();
-  return marked.parse(markdown, { async: false }) as string;
+  return marked.parse(normalizeDisplayMathBlocks(markdown), { async: false }) as string;
 }

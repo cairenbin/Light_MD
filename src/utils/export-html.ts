@@ -1,6 +1,11 @@
+import katexStyle from "katex/dist/katex.min.css?raw";
 import { escapeHtml } from "./html";
 
+export const EXPORT_KATEX_STYLE = katexStyle.replace(/@font-face\{[^}]+\}/gu, "");
+
 export const EXPORT_MARKDOWN_STYLE = `
+  ${EXPORT_KATEX_STYLE}
+
   .markdown-body {
     color: #111;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -135,6 +140,16 @@ export const EXPORT_MARKDOWN_STYLE = `
   .markdown-body img {
     max-width: 100%;
     height: auto;
+  }
+
+  .markdown-body .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.2em 0;
+  }
+
+  .markdown-body .katex-error {
+    color: #9f1d1d;
   }
 `;
 

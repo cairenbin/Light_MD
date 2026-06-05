@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMarkdownToHtml } from "./editor/markdown-renderer";
+import "katex/dist/katex.min.css";
 import "./styles.css";
 
 import type {

@@ -27,7 +27,9 @@
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "katex": "^0.17.0",
     "marked": "^15.0.7",
+    "marked-katex-extension": "^5.1.10",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2"
   },

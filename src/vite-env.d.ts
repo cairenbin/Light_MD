@@ -12,3 +12,8 @@ interface ImportMeta {
     send<T = unknown>(event: string, data?: T): void;
   };
 }
+
+declare module "*.css?raw" {
+  const content: string;
+  export default content;
+}

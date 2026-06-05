@@ -1387,6 +1387,16 @@ html[data-theme="dark"] .hljs-addition { color: #b8c75d; }
   border-radius: 8px;
 }
 
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: calc(4px * var(--content-scale)) 0;
+}
+
+.markdown-body .katex-error {
+  color: #dc322f;
+}
+
 .statusbar {
   display: flex;
   justify-content: flex-end;
