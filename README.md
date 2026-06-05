@@ -27,6 +27,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Paste-as-Markdown: clipboard content with an HTML flavor (copied from web pages or rich-text apps) is converted to Markdown on paste while standard paste shortcuts remain native.
 - HTML export inlines local images so exported single-file documents remain viewable offline.
 - Standard PDF export with block-aware pagination tuned for long Markdown documents.
+- KaTeX formulas are rendered in preview and exports; exported documents use embedded layout CSS, while the app preview uses bundled KaTeX fonts.
 - `File > Clean Unused Assets...` to safely move unreferenced current-document assets to Trash/Recycle Bin.
 - `File > Download Remote Images...` to fetch remote `http(s)` images in the current document into scoped assets and rewrite the links to local paths (so they display under the editor's image CSP); failed downloads are skipped and reported.
 - Native app menu localization follows in-app language for custom menu items (English, 中文, 日本語).
@@ -43,7 +44,9 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Rust for native commands and file operations.
 - `marked` for Markdown rendering.
 - `KaTeX` for math formula rendering.
+- `highlight.js` for code block syntax highlighting.
 - `turndown` (with the GFM plugin) for converting pasted HTML to Markdown.
+- `html2canvas` and `jsPDF` for PDF export.
 - `DOMPurify` for preview sanitization.
 - Vitest for unit tests on extracted helpers.
 - ESLint and Prettier for code style.
@@ -52,8 +55,11 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 ## Project Structure
 
 - `src/main.ts` — application entry and top-level wiring.
+- `src/core/` — file workflow controllers for open/save/export/assets.
+- `src/ui/` — UI controllers for autocomplete, find, insert menu, outline, and settings.
 - `src/editor/` — pure editor helpers (snippets, find matches, list/code continuation) with unit tests.
 - `src/utils/` — shared utilities (`html`, `path`, `platform`, `storage`).
+- `src/storage/` — session persistence and recent file synchronization.
 - `src/i18n/` — translation dictionaries and lookup helpers.
 - `src/types.ts` / `src/constants.ts` — shared type aliases and constants.
 - `src-tauri/` — Rust commands, Tauri configuration, and native menu wiring.

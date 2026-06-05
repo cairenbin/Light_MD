@@ -27,6 +27,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - 粘贴为 Markdown：当剪贴板包含 HTML 内容（从网页或富文本应用复制）时，粘贴会自动转换为 Markdown，同时保留系统原生粘贴快捷键体验。
 - HTML 导出会内嵌本地图片，导出的单文件可离线直接查看。
 - 标准 PDF 导出，包含面向长文档的块级分页优化。
+- KaTeX 公式会在预览与导出中渲染；导出文档内嵌公式布局样式，应用内预览使用打包内置的 KaTeX 字体。
 - `File > Clean Unused Assets...`：仅扫描当前文档作用域资源，将未引用图片安全移动到回收站（非物理删除）。
 - `File > Download Remote Images...`：将当前文档中的 `http(s)` 远程图片下载到作用域资源目录，并把链接改写为本地路径（从而能在编辑器图片 CSP 下正常显示）；下载失败的会跳过并汇总提示。
 - 原生菜单自定义项支持跟随应用语言切换（`English`、`中文`、`日本語`）。
@@ -43,7 +44,9 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - Rust（原生命令与文件操作）
 - `marked`（Markdown 渲染）
 - `KaTeX`（数学公式渲染）
+- `highlight.js`（代码块语法高亮）
 - `turndown`（含 GFM 插件，将粘贴的 HTML 转换为 Markdown）
+- `html2canvas` + `jsPDF`（PDF 导出）
 - `DOMPurify`（预览内容净化）
 - Vitest（对抽离出的纯函数模块做单元测试）
 - ESLint + Prettier（代码风格统一）
@@ -52,8 +55,11 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 ## 项目结构
 
 - `src/main.ts` —— 应用入口与顶层装配。
+- `src/core/` —— 文件工作流控制器，包括打开、保存、导出与资源管理。
+- `src/ui/` —— UI 控制器，包括自动完成、查找、插入菜单、大纲与设置。
 - `src/editor/` —— 编辑器纯函数（snippets、find matches、列表 / 代码块续行），含单元测试。
 - `src/utils/` —— 通用工具（`html`、`path`、`platform`、`storage`）。
+- `src/storage/` —— 会话持久化与最近文件同步。
 - `src/i18n/` —— 翻译字典与查找辅助函数。
 - `src/types.ts` / `src/constants.ts` —— 共享的类型别名与常量。
 - `src-tauri/` —— Rust 端命令、Tauri 配置与原生菜单接线。

@@ -96,5 +96,5 @@ All notable changes to this project will be documented in this file.
 ### Notes
 
 - The app is not ready for a stable release yet.
-- Packaging scripts and release artifacts are intentionally not finalized.
+- Release packaging is currently centered on macOS CI; broader cross-platform packaging is still evolving.
 - The project uses GPL-3.0-or-later for open source use with a separate commercial licensing path.

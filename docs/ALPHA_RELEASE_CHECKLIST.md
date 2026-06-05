@@ -10,6 +10,7 @@ Use this checklist before publishing the first GitHub alpha.
 - Confirm generated files are ignored.
 - Confirm no local-only files or secrets are present.
 - Add screenshots or a short demo GIF after the UI stabilizes.
+- Confirm release notes and changelog entries are updated before tagging.
 
 ## Product
 
@@ -33,7 +34,11 @@ Use this checklist before publishing the first GitHub alpha.
 ## Release
 
 - Decide whether alpha builds will be attached to GitHub Releases.
-- Add packaging scripts only when the app behavior is stable enough.
+- Use the existing macOS GitHub Actions workflow for arm64/x64 release assets.
+- Keep regular `master` pushes out of packaging CI; use `release` branch pushes or `v*` tags for release builds.
+- Verify release asset names follow the `LightMD-<version>-macos-<arch>` convention.
+- Decide when to add Windows and Linux package workflows.
+- Decide whether macOS builds will stay unsigned or move to Developer ID signing/notarization.
 - Replace the placeholder app icon before a public alpha if possible.
 - Confirm the commercial licensing contact path is still accurate before public release.
 - Tag alpha releases consistently, for example `v0.1.0-alpha.1`.
