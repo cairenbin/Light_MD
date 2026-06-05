@@ -505,10 +505,7 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
     )?;
     let edit_cut = MenuItem::with_id(app, "edit.cut", labels.edit_cut, true, Some("CmdOrCtrl+X"))?;
     let edit_copy = MenuItem::with_id(app, "edit.copy", labels.edit_copy, true, Some("CmdOrCtrl+C"))?;
-    // No accelerator: Cmd/Ctrl+V is left to the webview's native paste event so the
-    // editor's paste handler can read text/html from the clipboard and convert it to
-    // Markdown. The menu item stays clickable (plain-text paste via the clipboard API).
-    let edit_paste = MenuItem::with_id(app, "edit.paste", labels.edit_paste, true, None::<&str>)?;
+    let edit_paste = PredefinedMenuItem::paste(app, Some(labels.edit_paste))?;
     let edit_select_all = MenuItem::with_id(
         app,
         "edit.select_all",
@@ -790,7 +787,6 @@ fn set_menu_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> 
             set_menu_item_text_in_submenu(edit_submenu, "edit.redo", labels.edit_redo)?;
             set_menu_item_text_in_submenu(edit_submenu, "edit.cut", labels.edit_cut)?;
             set_menu_item_text_in_submenu(edit_submenu, "edit.copy", labels.edit_copy)?;
-            set_menu_item_text_in_submenu(edit_submenu, "edit.paste", labels.edit_paste)?;
             set_menu_item_text_in_submenu(edit_submenu, "edit.select_all", labels.edit_select_all)?;
             set_menu_item_text_in_submenu(edit_submenu, "edit.find", labels.edit_find)?;
             set_menu_item_text_in_submenu(edit_submenu, "edit.replace", labels.edit_replace)?;

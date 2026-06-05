@@ -572,6 +572,10 @@ editor.addEventListener("click", () => {
 });
 
 editor.addEventListener("paste", (event) => {
+  handleEditorPaste(event);
+});
+
+function handleEditorPaste(event: ClipboardEvent): boolean {
   const items = Array.from(event.clipboardData?.items ?? []);
   const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
   const file = imageItem?.getAsFile();
@@ -579,26 +583,25 @@ editor.addEventListener("paste", (event) => {
   if (file) {
     event.preventDefault();
     void filesController.insertImageFromClipboardFile(file);
-    return;
+    return true;
   }
 
   const html = event.clipboardData?.getData("text/html");
 
-  if (!html || !html.trim()) {
-    return;
+  if (html?.trim()) {
+    const markdown = htmlToMarkdown(html);
+
+    if (markdown) {
+      event.preventDefault();
+      const start = editor.selectionStart ?? 0;
+      const end = editor.selectionEnd ?? start;
+      filesController.applyEditorEdit({ start, end, text: markdown });
+      return true;
+    }
   }
 
-  const markdown = htmlToMarkdown(html);
-
-  if (!markdown) {
-    return;
-  }
-
-  event.preventDefault();
-  const start = editor.selectionStart ?? 0;
-  const end = editor.selectionEnd ?? start;
-  filesController.applyEditorEdit({ start, end, text: markdown });
-});
+  return false;
+}
 
 editor.addEventListener("keyup", (event) => {
   if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") {

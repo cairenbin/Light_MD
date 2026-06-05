@@ -36,6 +36,7 @@ All notable changes to this project will be documented in this file.
 - `File > Export HTML...` with single-file export support and local image inlining (`data:` URLs) for portable offline viewing.
 - `File > Export PDF...` (standard mode) with white-background document output and improved block-aware pagination.
 - New shared Markdown renderer module to keep preview and export rendering behavior consistent.
+- KaTeX math rendering for inline formulas (`$...$`) and display formulas (`$$...$$`) in preview and exports.
 - macOS release workflow updates for arm64/x64 builds on modern GitHub runners, with release asset renaming and tag-based app version sync.
 
 ### Changed
@@ -56,7 +57,7 @@ All notable changes to this project will be documented in this file.
 - Export output style aligned to a neutral document format (white background, black text) for printable/shareable HTML and PDF files.
 - PDF export layout refined to reduce heading/content separation across page boundaries and reduce large-image split artifacts.
 - macOS CI pipeline now targets release/tag flows with updated Node 24-compatible GitHub Action runtime settings.
-- Dropped the `Cmd/Ctrl+V` accelerator from the native `Edit > Paste` menu item so the shortcut reaches the webview paste event (which can read clipboard HTML); the menu item stays clickable for plain-text paste.
+- Restored `Edit > Paste` to the native system Paste menu item so `Cmd/Ctrl+V` reliably reaches the webview while the editor paste handler still converts clipboard HTML to Markdown.
 
 ### Security
 
@@ -90,6 +91,7 @@ All notable changes to this project will be documented in this file.
 - Fixed HTML export image path issues that caused broken relative image links after opening exported files directly.
 - Fixed PDF export rendering regressions (blank pages and unstable pagination path) by switching to a stable canvas-based export path with smarter page-break selection.
 - Fixed topbar responsive recalculation so toolbar layout reliably recovers after repeated narrow/wide window resizing.
+- Fixed `Cmd/Ctrl+V` paste regression caused by replacing the native system Paste action during Paste-as-Markdown work.
 
 ### Notes
 

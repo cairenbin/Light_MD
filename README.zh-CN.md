@@ -17,13 +17,14 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - 明亮 / 暗黑主题。
 - 按比例文档缩放。
 - 工具栏 `Insert`，用于块级 Markdown 结构快速插入。
+- KaTeX 数学公式渲染，支持行内公式（`$...$`）与块级公式（`$$...$$`）。
 - 内置 `Find / Replace` 面板，支持 `区分大小写（Aa）` 与 `全词匹配（""）` 开关。
 - 面向键盘的查找工作流（`Cmd/Ctrl+F` 查找，`Cmd/Ctrl+R` 替换面板开关）。
 - 自动完成提示与可配置触发组合键。
 - `File > Open Recent` 最近文件历史（真实文件名 + 路径，最多 10 条）。
 - 格式化工具按钮（`Bold`、`Italic`、`Link`、`Code`、`Quote`）以及原生 `Formatting` 菜单支持。
 - 支持图片粘贴 / 拖入：图片会写入当前文档作用域目录 `assets/<文档名>/`，并自动插入 Markdown 图片链接。
-- 粘贴为 Markdown：当剪贴板包含 HTML 内容（从网页或富文本应用复制）时，粘贴会自动转换为 Markdown；纯文本与图片粘贴不受影响。
+- 粘贴为 Markdown：当剪贴板包含 HTML 内容（从网页或富文本应用复制）时，粘贴会自动转换为 Markdown，同时保留系统原生粘贴快捷键体验。
 - HTML 导出会内嵌本地图片，导出的单文件可离线直接查看。
 - 标准 PDF 导出，包含面向长文档的块级分页优化。
 - `File > Clean Unused Assets...`：仅扫描当前文档作用域资源，将未引用图片安全移动到回收站（非物理删除）。
@@ -41,6 +42,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - TypeScript + Vite（编辑器 UI）
 - Rust（原生命令与文件操作）
 - `marked`（Markdown 渲染）
+- `KaTeX`（数学公式渲染）
 - `turndown`（含 GFM 插件，将粘贴的 HTML 转换为 Markdown）
 - `DOMPurify`（预览内容净化）
 - Vitest（对抽离出的纯函数模块做单元测试）
