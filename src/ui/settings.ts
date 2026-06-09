@@ -1,4 +1,6 @@
 import {
+  editorFontFamilySelect,
+  editorFontSizeSelect,
   fontDecreaseButton,
   fontIncreaseButton,
   fontSizeLabel,
@@ -11,7 +13,10 @@ import {
   themeOptionButtons
 } from "../dom";
 import {
+  DEFAULT_EDITOR_FONT_FAMILY,
+  DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_ZOOM_PERCENT,
+  EDITOR_FONT_SIZE_OPTIONS,
   MAX_ZOOM_PERCENT,
   MIN_ZOOM_PERCENT,
   ZOOM_STEP
@@ -19,6 +24,8 @@ import {
 import { isSupportedLocale, translate, type TranslationKey } from "../i18n/dictionaries";
 import {
   persistAutocompleteShortcut,
+  persistEditorFontFamily,
+  persistEditorFontSize,
   persistLocale,
   persistTheme,
   persistZoom
@@ -29,8 +36,9 @@ import {
   state
 } from "../state";
 import type { AutocompleteShortcutOption, Locale, ThemeMode } from "../types";
-import { clampZoom } from "../utils/storage";
+import { parseSavedEditorFontSize, clampZoom } from "../utils/storage";
 import { escapeAttribute, escapeHtml } from "../utils/html";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface SettingsControllerDeps {
   render: () => void;
@@ -54,7 +62,11 @@ export interface SettingsController {
   setTheme: (theme: ThemeMode) => void;
   changeZoom: (delta: number) => void;
   resetZoom: () => void;
+  renderEditorTypography: () => void;
+  loadSystemFonts: () => Promise<void>;
   setShortcut: (id: string) => void;
+  setEditorFontFamily: (fontFamily: string) => void;
+  setEditorFontSize: (fontSize: string) => void;
   setLocale: (locale: string) => void;
   handleAction: (action: string, target: HTMLElement) => boolean;
   bindListeners: () => void;
@@ -64,6 +76,9 @@ export interface SettingsController {
 function t(key: TranslationKey): string {
   return translate(state.locale, key);
 }
+
+const DEFAULT_FONT_STACK = '"Iowan Old Style", "Georgia", serif';
+const FALLBACK_EDITOR_FONTS = ["Avenir Next", "Georgia", "Menlo", "Monaco", "Courier New"];
 
 function setTextByDataAttr<E extends HTMLElement>(
   elements: E[],
@@ -78,6 +93,10 @@ function setTextByDataAttr<E extends HTMLElement>(
 }
 
 export function createSettingsController(deps: SettingsControllerDeps): SettingsController {
+  let systemFonts: string[] = [];
+  let hasLoadedSystemFonts = false;
+  let pendingSystemFontsLoad: Promise<void> | null = null;
+
   function renderThemeOptions() {
     for (const button of themeOptionButtons) {
       const themeValue = button.dataset.themeValue;
@@ -123,6 +142,41 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     languageSelect.value = state.locale;
   }
 
+  function getEditorFontOptions(): string[] {
+    const merged = new Set(
+      [state.editorFontFamily, ...systemFonts, ...FALLBACK_EDITOR_FONTS]
+        .map((font) => font.trim())
+        .filter((font) => font.length > 0)
+    );
+
+    return Array.from(merged).sort((a, b) => a.localeCompare(b));
+  }
+
+  function renderEditorFontOptions() {
+    const fontOptions = getEditorFontOptions();
+    const defaultSelected = state.editorFontFamily === DEFAULT_EDITOR_FONT_FAMILY ? " selected" : "";
+
+    editorFontFamilySelect.innerHTML = [
+      `<option value=""${defaultSelected}>${escapeHtml(t("settings.editor.defaultFont"))}</option>`,
+      ...fontOptions.map((font) => {
+        const selected = font === state.editorFontFamily ? " selected" : "";
+        const escapedFont = escapeAttribute(font);
+        return `<option value="${escapedFont}"${selected}>${escapeHtml(font)}</option>`;
+      })
+    ].join("");
+
+    editorFontFamilySelect.value = state.editorFontFamily;
+  }
+
+  function renderEditorFontSizeOptions() {
+    editorFontSizeSelect.innerHTML = EDITOR_FONT_SIZE_OPTIONS.map((fontSize) => {
+      const selected = fontSize === state.editorFontSize ? " selected" : "";
+      return `<option value="${fontSize}"${selected}>${fontSize}px</option>`;
+    }).join("");
+
+    editorFontSizeSelect.value = String(state.editorFontSize);
+  }
+
   function renderLabels() {
     settingsMenuButton.setAttribute("title", t("settings.open"));
     settingsMenuButton.setAttribute("aria-label", t("settings.open"));
@@ -130,11 +184,16 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     setTextByDataAttr(themeOptionButtons, "themeValue", "dark", t("settings.theme.dark"));
     fontDecreaseButton.setAttribute("aria-label", t("settings.zoom.out"));
     fontIncreaseButton.setAttribute("aria-label", t("settings.zoom.in"));
+    editorFontFamilySelect.setAttribute("aria-label", t("settings.editor.fontFamily"));
+    editorFontSizeSelect.setAttribute("aria-label", t("settings.editor.fontSize"));
 
     setTextByDataAttr(settingsGroupTitles, "settingsGroup", "theme", t("settings.theme"));
     setTextByDataAttr(settingsGroupTitles, "settingsGroup", "zoom", t("settings.zoom"));
+    setTextByDataAttr(settingsGroupTitles, "settingsGroup", "editor", t("settings.editor"));
     setTextByDataAttr(settingsGroupTitles, "settingsGroup", "autocomplete", t("settings.autocomplete"));
     setTextByDataAttr(settingsGroupTitles, "settingsGroup", "language", t("settings.language"));
+    setTextByDataAttr(settingsFieldLabels, "settingsField", "editor-font-family", t("settings.editor.fontFamily"));
+    setTextByDataAttr(settingsFieldLabels, "settingsField", "editor-font-size", t("settings.editor.fontSize"));
     setTextByDataAttr(settingsFieldLabels, "settingsField", "trigger", t("settings.trigger"));
     setTextByDataAttr(settingsFieldLabels, "settingsField", "language", t("settings.language"));
   }
@@ -148,6 +207,8 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     renderThemeOptions();
     renderShortcutOptions();
     renderLanguageOptions();
+    renderEditorFontOptions();
+    renderEditorFontSizeOptions();
   }
 
   function renderTheme() {
@@ -162,10 +223,48 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     fontIncreaseButton.disabled = state.zoomPercent >= MAX_ZOOM_PERCENT;
   }
 
+  function renderEditorTypography() {
+    const quotedFontFamily = state.editorFontFamily.replace(/["\\]/gu, "\\$&");
+    const fontFamily = state.editorFontFamily ? `"${quotedFontFamily}", ${DEFAULT_FONT_STACK}` : DEFAULT_FONT_STACK;
+
+    document.documentElement.style.setProperty("--editor-font-family", fontFamily);
+    document.documentElement.style.setProperty("--editor-font-size", `${state.editorFontSize}px`);
+    renderEditorFontOptions();
+    renderEditorFontSizeOptions();
+  }
+
+  async function loadSystemFonts() {
+    if (hasLoadedSystemFonts) {
+      return;
+    }
+
+    if (pendingSystemFontsLoad) {
+      await pendingSystemFontsLoad;
+      return;
+    }
+
+    pendingSystemFontsLoad = invoke<string[]>("list_system_fonts")
+      .then((fonts) => {
+        systemFonts = fonts;
+        hasLoadedSystemFonts = true;
+        renderEditorFontOptions();
+      })
+      .catch(() => {
+        systemFonts = [];
+        hasLoadedSystemFonts = true;
+        renderEditorFontOptions();
+      })
+      .finally(() => {
+        pendingSystemFontsLoad = null;
+      });
+
+    await pendingSystemFontsLoad;
+  }
+
   function getSettingsControls(): HTMLElement[] {
     return Array.from(
       settingsMenu.querySelectorAll<HTMLElement>(
-        "button.settings-option-button, button.font-button, select.settings-shortcut-select"
+        "button.settings-option-button, button.font-button, select.settings-shortcut-select, select.settings-language-select, select.settings-editor-font-family-select, select.settings-editor-font-size-select"
       )
     );
   }
@@ -187,6 +286,7 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     deps.closeInsertMenu();
     deps.closeAutocomplete();
     renderMenu();
+    void loadSystemFonts();
     window.setTimeout(() => {
       focusSettingsControl(focusLast);
     }, 0);
@@ -237,6 +337,21 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     state.zoomPercent = DEFAULT_ZOOM_PERCENT;
     persistZoom(state.zoomPercent);
     renderZoom();
+    requestAnimationFrame(() => {
+      deps.syncActiveScroll();
+    });
+  }
+
+  function setEditorFontFamily(fontFamily: string) {
+    state.editorFontFamily = fontFamily.trim();
+    persistEditorFontFamily(state.editorFontFamily);
+    renderEditorTypography();
+  }
+
+  function setEditorFontSize(fontSize: string) {
+    state.editorFontSize = parseSavedEditorFontSize(fontSize || String(DEFAULT_EDITOR_FONT_SIZE));
+    persistEditorFontSize(state.editorFontSize);
+    renderEditorTypography();
     requestAnimationFrame(() => {
       deps.syncActiveScroll();
     });
@@ -311,6 +426,14 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
       setShortcut(shortcutSelect.value);
     });
 
+    editorFontFamilySelect.addEventListener("change", () => {
+      setEditorFontFamily(editorFontFamilySelect.value);
+    });
+
+    editorFontSizeSelect.addEventListener("change", () => {
+      setEditorFontSize(editorFontSizeSelect.value);
+    });
+
     languageSelect.addEventListener("change", () => {
       setLocale(languageSelect.value);
     });
@@ -330,6 +453,10 @@ export function createSettingsController(deps: SettingsControllerDeps): Settings
     setTheme,
     changeZoom,
     resetZoom,
+    renderEditorTypography,
+    loadSystemFonts,
+    setEditorFontFamily,
+    setEditorFontSize,
     setShortcut,
     setLocale,
     handleAction,

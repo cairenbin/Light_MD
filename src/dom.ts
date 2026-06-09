@@ -42,6 +42,8 @@ export let themeOptionButtons!: HTMLButtonElement[];
 export let fontDecreaseButton!: HTMLButtonElement;
 export let fontIncreaseButton!: HTMLButtonElement;
 export let fontSizeLabel!: HTMLSpanElement;
+export let editorFontFamilySelect!: HTMLSelectElement;
+export let editorFontSizeSelect!: HTMLSelectElement;
 export let shortcutSelect!: HTMLSelectElement;
 export let documentCount!: HTMLSpanElement;
 export let shortcutCopy!: HTMLParagraphElement;
@@ -121,6 +123,8 @@ export function initDom(app: HTMLElement): void {
   fontDecreaseButton = requireElement<HTMLButtonElement>("[data-action='font-decrease']");
   fontIncreaseButton = requireElement<HTMLButtonElement>("[data-action='font-increase']");
   fontSizeLabel = requireElement<HTMLSpanElement>(".font-size-label");
+  editorFontFamilySelect = requireElement<HTMLSelectElement>(".settings-editor-font-family-select");
+  editorFontSizeSelect = requireElement<HTMLSelectElement>(".settings-editor-font-size-select");
   shortcutSelect = requireElement<HTMLSelectElement>(".settings-shortcut-select");
   documentCount = requireElement<HTMLSpanElement>(".drawer-section-count");
   shortcutCopy = requireElement<HTMLParagraphElement>(".shortcut-copy");

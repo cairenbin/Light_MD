@@ -22,6 +22,8 @@ export type EditorState = {
   openFiles: OpenFile[];
   activeFileId: string;
   zoomPercent: number;
+  editorFontFamily: string;
+  editorFontSize: number;
   autocompleteShortcutId: string;
   locale: Locale;
   drawerTab: DrawerTab;

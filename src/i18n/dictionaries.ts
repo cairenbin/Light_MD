@@ -22,6 +22,10 @@ export type TranslationKey =
   | "settings.zoom"
   | "settings.zoom.out"
   | "settings.zoom.in"
+  | "settings.editor"
+  | "settings.editor.fontFamily"
+  | "settings.editor.fontSize"
+  | "settings.editor.defaultFont"
   | "settings.autocomplete"
   | "settings.trigger"
   | "settings.language"
@@ -104,6 +108,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.zoom": "Zoom",
     "settings.zoom.out": "Zoom out document",
     "settings.zoom.in": "Zoom in document",
+    "settings.editor": "Editor",
+    "settings.editor.fontFamily": "Font",
+    "settings.editor.fontSize": "Size",
+    "settings.editor.defaultFont": "Default",
     "settings.autocomplete": "Autocomplete",
     "settings.trigger": "Trigger",
     "settings.language": "Language",
@@ -183,6 +191,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.zoom": "缩放",
     "settings.zoom.out": "缩小文档",
     "settings.zoom.in": "放大文档",
+    "settings.editor": "编辑器",
+    "settings.editor.fontFamily": "字体",
+    "settings.editor.fontSize": "字号",
+    "settings.editor.defaultFont": "默认",
     "settings.autocomplete": "自动完成",
     "settings.trigger": "触发键",
     "settings.language": "语言",
@@ -262,6 +274,10 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "settings.zoom": "ズーム",
     "settings.zoom.out": "ズームアウト",
     "settings.zoom.in": "ズームイン",
+    "settings.editor": "エディタ",
+    "settings.editor.fontFamily": "フォント",
+    "settings.editor.fontSize": "サイズ",
+    "settings.editor.defaultFont": "デフォルト",
     "settings.autocomplete": "自動補完",
     "settings.trigger": "トリガー",
     "settings.language": "言語",

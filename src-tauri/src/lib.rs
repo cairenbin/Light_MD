@@ -1,8 +1,8 @@
 mod watcher;
 
 use serde::Serialize;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
-use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -16,6 +16,7 @@ const ALLOWED_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
 const ALLOWED_EXPORT_HTML_EXTENSIONS: &[&str] = &["html", "htm"];
 const ALLOWED_EXPORT_PDF_EXTENSIONS: &[&str] = &["pdf"];
 const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
+const FONT_EXTENSIONS: &[&str] = &["ttf", "otf", "ttc", "otc"];
 
 #[derive(Clone, Copy)]
 enum MenuLocale {
@@ -438,6 +439,7 @@ pub fn run() {
             save_markdown_file,
             export_html_file,
             export_pdf_file,
+            list_system_fonts,
             watch_file,
             unwatch_file
         ])
@@ -871,6 +873,230 @@ fn save_markdown_file(
         name: file_name(&path),
         path: path.to_string_lossy().into_owned(),
     }))
+}
+
+#[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    let mut names = BTreeSet::new();
+
+    for dir in system_font_dirs() {
+        collect_font_families_from_dir(&dir, 0, &mut names);
+    }
+
+    names.into_iter().take(500).collect()
+}
+
+fn system_font_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        dirs.push(PathBuf::from("/System/Library/Fonts"));
+        dirs.push(PathBuf::from("/System/Library/Fonts/Supplemental"));
+        dirs.push(PathBuf::from("/Library/Fonts"));
+        if let Some(home) = std::env::var_os("HOME") {
+            dirs.push(PathBuf::from(home).join("Library/Fonts"));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(windir) = std::env::var_os("WINDIR") {
+            dirs.push(PathBuf::from(windir).join("Fonts"));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        dirs.push(PathBuf::from("/usr/share/fonts"));
+        dirs.push(PathBuf::from("/usr/local/share/fonts"));
+        if let Some(home) = std::env::var_os("HOME") {
+            let home = PathBuf::from(home);
+            dirs.push(home.join(".fonts"));
+            dirs.push(home.join(".local/share/fonts"));
+        }
+    }
+
+    dirs
+}
+
+fn collect_font_families_from_dir(dir: &Path, depth: usize, names: &mut BTreeSet<String>) {
+    if depth > 6 || names.len() >= 500 {
+        return;
+    }
+
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_font_families_from_dir(&path, depth + 1, names);
+            continue;
+        }
+
+        if !is_font_file(&path) {
+            continue;
+        }
+
+        if let Ok(bytes) = fs::read(&path) {
+            for name in parse_font_family_names(&bytes) {
+                names.insert(name);
+            }
+        }
+    }
+}
+
+fn is_font_file(path: &Path) -> bool {
+    let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    FONT_EXTENSIONS
+        .iter()
+        .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+}
+
+fn parse_font_family_names(bytes: &[u8]) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+
+    if bytes.len() >= 12 && &bytes[0..4] == b"ttcf" {
+        let Some(count) = read_u32_be(bytes, 8) else {
+            return names;
+        };
+
+        for index in 0..count.min(64) as usize {
+            let offset_index = 12 + index * 4;
+            let Some(offset) = read_u32_be(bytes, offset_index) else {
+                continue;
+            };
+            parse_sfnt_family_names(bytes, offset as usize, &mut names);
+        }
+
+        return names;
+    }
+
+    parse_sfnt_family_names(bytes, 0, &mut names);
+    names
+}
+
+fn parse_sfnt_family_names(bytes: &[u8], offset: usize, names: &mut BTreeSet<String>) {
+    if offset + 12 > bytes.len() {
+        return;
+    }
+
+    let Some(table_count) = read_u16_be(bytes, offset + 4) else {
+        return;
+    };
+    let table_records_start = offset + 12;
+
+    for index in 0..table_count as usize {
+        let record_start = table_records_start + index * 16;
+        if record_start + 16 > bytes.len() {
+            return;
+        }
+
+        if &bytes[record_start..record_start + 4] != b"name" {
+            continue;
+        }
+
+        let Some(table_offset) = read_u32_be(bytes, record_start + 8) else {
+            return;
+        };
+        let Some(table_length) = read_u32_be(bytes, record_start + 12) else {
+            return;
+        };
+        parse_name_table(bytes, table_offset as usize, table_length as usize, names);
+        return;
+    }
+}
+
+fn parse_name_table(bytes: &[u8], offset: usize, length: usize, names: &mut BTreeSet<String>) {
+    if offset + length > bytes.len() || length < 6 {
+        return;
+    }
+
+    let table = &bytes[offset..offset + length];
+    let Some(record_count) = read_u16_be(table, 2) else {
+        return;
+    };
+    let Some(string_offset) = read_u16_be(table, 4) else {
+        return;
+    };
+
+    for preferred_name_id in [16_u16, 1_u16] {
+        for index in 0..record_count as usize {
+            let record_start = 6 + index * 12;
+            if record_start + 12 > table.len() {
+                return;
+            }
+
+            let platform_id = read_u16_be(table, record_start).unwrap_or_default();
+            let encoding_id = read_u16_be(table, record_start + 2).unwrap_or_default();
+            let name_id = read_u16_be(table, record_start + 6).unwrap_or_default();
+
+            if name_id != preferred_name_id {
+                continue;
+            }
+
+            let Some(value_length) = read_u16_be(table, record_start + 8) else {
+                continue;
+            };
+            let Some(value_offset) = read_u16_be(table, record_start + 10) else {
+                continue;
+            };
+            let start = string_offset as usize + value_offset as usize;
+            let end = start + value_length as usize;
+
+            if end > table.len() {
+                continue;
+            }
+
+            if let Some(name) = decode_font_name(platform_id, encoding_id, &table[start..end]) {
+                names.insert(name);
+            }
+        }
+
+        if !names.is_empty() {
+            return;
+        }
+    }
+}
+
+fn decode_font_name(platform_id: u16, encoding_id: u16, bytes: &[u8]) -> Option<String> {
+    let decoded = if platform_id == 0 || platform_id == 3 || (platform_id == 2 && encoding_id == 1) {
+        decode_utf16_be(bytes)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    };
+
+    let cleaned = decoded.replace('\0', "").trim().to_string();
+
+    if cleaned.is_empty() || cleaned.starts_with('.') {
+        return None;
+    }
+
+    Some(cleaned)
+}
+
+fn decode_utf16_be(bytes: &[u8]) -> String {
+    let units = bytes
+        .chunks_exact(2)
+        .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]));
+
+    String::from_utf16_lossy(&units.collect::<Vec<_>>())
+}
+
+fn read_u16_be(bytes: &[u8], offset: usize) -> Option<u16> {
+    let slice = bytes.get(offset..offset + 2)?;
+    Some(u16::from_be_bytes([slice[0], slice[1]]))
+}
+
+fn read_u32_be(bytes: &[u8], offset: usize) -> Option<u32> {
+    let slice = bytes.get(offset..offset + 4)?;
+    Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
 #[tauri::command]

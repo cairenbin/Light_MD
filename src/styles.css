@@ -32,6 +32,8 @@
   --drawer-width: 360px;
   --content-scale: 1;
   --content-font-size: calc(18px * var(--content-scale));
+  --editor-font-family: "Iowan Old Style", "Georgia", serif;
+  --editor-font-size: 18px;
   --content-padding: 8px;
   --content-gutter-pair: 0px;
   --content-flow: calc(18px * var(--content-scale));
@@ -414,7 +416,9 @@ kbd {
 }
 
 .settings-shortcut-select,
-.settings-language-select {
+.settings-language-select,
+.settings-editor-font-family-select,
+.settings-editor-font-size-select {
   min-height: 36px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -952,7 +956,11 @@ kbd {
 :root[data-locale="zh"] .settings-shortcut-select,
 :root[data-locale="ja"] .settings-shortcut-select,
 :root[data-locale="zh"] .settings-language-select,
-:root[data-locale="ja"] .settings-language-select {
+:root[data-locale="ja"] .settings-language-select,
+:root[data-locale="zh"] .settings-editor-font-family-select,
+:root[data-locale="ja"] .settings-editor-font-family-select,
+:root[data-locale="zh"] .settings-editor-font-size-select,
+:root[data-locale="ja"] .settings-editor-font-size-select {
   font-size: 12px;
 }
 
@@ -1007,8 +1015,8 @@ kbd {
   outline: 0;
   background: var(--editor-bg);
   color: var(--text);
-  font-family: "Iowan Old Style", "Georgia", serif;
-  font-size: var(--content-font-size);
+  font-family: var(--editor-font-family);
+  font-size: calc(var(--editor-font-size) * var(--content-scale));
   line-height: 1.76;
 }
 

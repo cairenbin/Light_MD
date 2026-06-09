@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AUTOCOMPLETE_SHORTCUT_ID,
+  DEFAULT_EDITOR_FONT_FAMILY,
+  DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_LOCALE,
   DEFAULT_ZOOM_PERCENT,
+  MAX_EDITOR_FONT_SIZE,
   MAX_RECENT_FILES,
   MAX_ZOOM_PERCENT,
+  MIN_EDITOR_FONT_SIZE,
   MIN_ZOOM_PERCENT
 } from "../constants";
 import type { AutocompleteShortcutOption } from "../types";
@@ -12,6 +16,8 @@ import {
   clampZoom,
   parseSavedAutocompleteShortcutId,
   parseSavedDraftSession,
+  parseSavedEditorFontFamily,
+  parseSavedEditorFontSize,
   parseSavedLocale,
   parseSavedRecentFiles,
   parseSavedZoom
@@ -51,6 +57,28 @@ describe("parseSavedZoom", () => {
   it("clamps stored values into the valid range", () => {
     expect(parseSavedZoom(String(MAX_ZOOM_PERCENT + 1000))).toBe(MAX_ZOOM_PERCENT);
     expect(parseSavedZoom(String(MIN_ZOOM_PERCENT - 1000))).toBe(MIN_ZOOM_PERCENT);
+  });
+});
+
+describe("parseSavedEditorFontFamily", () => {
+  it("returns the default editor font when value is missing", () => {
+    expect(parseSavedEditorFontFamily(null)).toBe(DEFAULT_EDITOR_FONT_FAMILY);
+  });
+
+  it("trims stored font family names", () => {
+    expect(parseSavedEditorFontFamily("  Menlo  ")).toBe("Menlo");
+  });
+});
+
+describe("parseSavedEditorFontSize", () => {
+  it("returns the default editor font size when value is missing or unparseable", () => {
+    expect(parseSavedEditorFontSize(null)).toBe(DEFAULT_EDITOR_FONT_SIZE);
+    expect(parseSavedEditorFontSize("large")).toBe(DEFAULT_EDITOR_FONT_SIZE);
+  });
+
+  it("clamps stored font sizes into the supported range", () => {
+    expect(parseSavedEditorFontSize(String(MAX_EDITOR_FONT_SIZE + 50))).toBe(MAX_EDITOR_FONT_SIZE);
+    expect(parseSavedEditorFontSize(String(MIN_EDITOR_FONT_SIZE - 50))).toBe(MIN_EDITOR_FONT_SIZE);
   });
 });
 

@@ -16,6 +16,8 @@ export const state: EditorState = {
   isSidebarOpen: true,
   activeFileId: "",
   zoomPercent: 100,
+  editorFontFamily: "",
+  editorFontSize: 18,
   openFiles: [],
   autocompleteShortcutId: "",
   locale: "en",

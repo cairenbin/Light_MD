@@ -1,11 +1,15 @@
 import type { AutocompleteShortcutOption, DraftSession, Locale, OpenFile } from "../types";
 import {
   DEFAULT_AUTOCOMPLETE_SHORTCUT_ID,
+  DEFAULT_EDITOR_FONT_FAMILY,
+  DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_LOCALE,
   DEFAULT_ZOOM_PERCENT,
   DRAFT_SESSION_VERSION,
+  MAX_EDITOR_FONT_SIZE,
   MAX_RECENT_FILES,
   MAX_ZOOM_PERCENT,
+  MIN_EDITOR_FONT_SIZE,
   MIN_ZOOM_PERCENT
 } from "../constants";
 import { isSupportedLocale } from "../i18n/dictionaries";
@@ -23,6 +27,24 @@ export function parseSavedZoom(value: string | null): number {
 
   const zoomPercent = Number(value);
   return Number.isFinite(zoomPercent) ? clampZoom(zoomPercent) : DEFAULT_ZOOM_PERCENT;
+}
+
+export function parseSavedEditorFontFamily(value: string | null): string {
+  return value?.trim() ?? DEFAULT_EDITOR_FONT_FAMILY;
+}
+
+export function parseSavedEditorFontSize(value: string | null): number {
+  if (!value) {
+    return DEFAULT_EDITOR_FONT_SIZE;
+  }
+
+  const fontSize = Number(value);
+
+  if (!Number.isFinite(fontSize)) {
+    return DEFAULT_EDITOR_FONT_SIZE;
+  }
+
+  return Math.min(MAX_EDITOR_FONT_SIZE, Math.max(MIN_EDITOR_FONT_SIZE, Math.round(fontSize)));
 }
 
 export function parseSavedLocale(value: string | null): Locale {

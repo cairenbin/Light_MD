@@ -6,6 +6,8 @@ import {
   DRAFT_SESSION_KEY,
   DRAFT_SESSION_VERSION,
   DRAWER_TAB_KEY,
+  EDITOR_FONT_FAMILY_KEY,
+  EDITOR_FONT_SIZE_KEY,
   LOCALE_KEY,
   MAX_RECENT_FILES,
   RECENT_FILES_KEY,
@@ -30,6 +32,8 @@ import { logError } from "../utils/logger";
 import {
   parseSavedAutocompleteShortcutId,
   parseSavedDraftSession,
+  parseSavedEditorFontFamily,
+  parseSavedEditorFontSize,
   parseSavedLocale,
   parseSavedRecentFiles,
   parseSavedZoom
@@ -48,6 +52,8 @@ export function loadInitialSession(
   const savedTitle = localStorage.getItem(TITLE_KEY);
   const savedTheme = localStorage.getItem(THEME_KEY);
   const savedZoom = localStorage.getItem(ZOOM_KEY);
+  const savedEditorFontFamily = localStorage.getItem(EDITOR_FONT_FAMILY_KEY);
+  const savedEditorFontSize = localStorage.getItem(EDITOR_FONT_SIZE_KEY);
   const savedAutocompleteShortcut = localStorage.getItem(AUTOCOMPLETE_SHORTCUT_KEY);
   const savedLocale = localStorage.getItem(LOCALE_KEY);
   const savedRecentFiles = parseSavedRecentFiles(localStorage.getItem(RECENT_FILES_KEY));
@@ -68,6 +74,8 @@ export function loadInitialSession(
     isSidebarOpen: sidebarRaw !== "false",
     activeFileId: initialActiveFile.id,
     zoomPercent: parseSavedZoom(savedZoom),
+    editorFontFamily: parseSavedEditorFontFamily(savedEditorFontFamily),
+    editorFontSize: parseSavedEditorFontSize(savedEditorFontSize),
     openFiles: initialSession.openFiles,
     autocompleteShortcutId: parseSavedAutocompleteShortcutId(
       savedAutocompleteShortcut,
@@ -136,6 +144,19 @@ export function persistTheme(theme: ThemeMode): void {
 
 export function persistZoom(zoomPercent: number): void {
   localStorage.setItem(ZOOM_KEY, String(zoomPercent));
+}
+
+export function persistEditorFontFamily(fontFamily: string): void {
+  if (!fontFamily) {
+    localStorage.removeItem(EDITOR_FONT_FAMILY_KEY);
+    return;
+  }
+
+  localStorage.setItem(EDITOR_FONT_FAMILY_KEY, fontFamily);
+}
+
+export function persistEditorFontSize(fontSize: number): void {
+  localStorage.setItem(EDITOR_FONT_SIZE_KEY, String(fontSize));
 }
 
 export function persistAutocompleteShortcut(id: string): void {

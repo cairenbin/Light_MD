@@ -291,6 +291,18 @@ app.innerHTML = `
                 </div>
               </section>
 
+              <section class="settings-group" aria-label="Editor typography">
+                <h3 class="settings-group-title" data-settings-group="editor"></h3>
+                <label class="settings-field">
+                  <span class="settings-field-label" data-settings-field="editor-font-family"></span>
+                  <select class="settings-editor-font-family-select" aria-label="Editor font"></select>
+                </label>
+                <label class="settings-field">
+                  <span class="settings-field-label" data-settings-field="editor-font-size"></span>
+                  <select class="settings-editor-font-size-select" aria-label="Editor font size"></select>
+                </label>
+              </section>
+
               <section class="settings-group" aria-label="Autocomplete shortcut">
                 <h3 class="settings-group-title" data-settings-group="autocomplete"></h3>
                 <label class="settings-field">
@@ -851,6 +863,7 @@ function render() {
   renderMode();
   settingsController.renderTheme();
   settingsController.renderZoom();
+  settingsController.renderEditorTypography();
   renderDocuments();
   outlineController.renderTabs();
   outlineController.renderOutline();
