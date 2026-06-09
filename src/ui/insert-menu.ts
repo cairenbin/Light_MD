@@ -26,7 +26,7 @@ export interface InsertController {
   toggleMenu: () => void;
   openMenu: (focusIndex?: number) => void;
   closeMenu: (restoreFocus?: boolean) => void;
-  applyFormatting: (action: "bold" | "italic" | "link" | "code" | "quote") => void;
+  applyFormatting: (action: "bold" | "italic" | "strikethrough" | "link" | "code" | "quote") => void;
   applyMenuItem: (insertId: string) => void;
   handleAction: (action: string, target: HTMLElement) => boolean;
   bindListeners: () => void;
@@ -134,7 +134,7 @@ export function createInsertController(deps: InsertControllerDeps): InsertContro
     openMenu(0);
   }
 
-  function applyFormatting(action: "bold" | "italic" | "link" | "code" | "quote") {
+  function applyFormatting(action: "bold" | "italic" | "strikethrough" | "link" | "code" | "quote") {
     if (state.mode === "preview") {
       deps.setMode("write");
     }
@@ -157,6 +157,11 @@ export function createInsertController(deps: InsertControllerDeps): InsertContro
 
     if (action === "italic") {
       deps.applyEditorEdit(buildWrappedEdit(context, "_", "_", "emphasis"));
+      return;
+    }
+
+    if (action === "strikethrough") {
+      deps.applyEditorEdit(buildWrappedEdit(context, "~~", "~~", "removed text"));
       return;
     }
 
@@ -221,6 +226,9 @@ export function createInsertController(deps: InsertControllerDeps): InsertContro
         return true;
       case "format-italic":
         applyFormatting("italic");
+        return true;
+      case "format-strikethrough":
+        applyFormatting("strikethrough");
         return true;
       case "format-link":
         applyFormatting("link");

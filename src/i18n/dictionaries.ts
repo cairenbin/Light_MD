@@ -9,6 +9,7 @@ export type TranslationKey =
   | "toolbar.insert"
   | "toolbar.format.bold"
   | "toolbar.format.italic"
+  | "toolbar.format.strikethrough"
   | "toolbar.format.link"
   | "toolbar.format.code"
   | "toolbar.format.quote"
@@ -95,6 +96,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.insert": "Insert",
     "toolbar.format.bold": "Bold",
     "toolbar.format.italic": "Italic",
+    "toolbar.format.strikethrough": "Strikethrough",
     "toolbar.format.link": "Link",
     "toolbar.format.code": "Code",
     "toolbar.format.quote": "Quote",
@@ -178,6 +180,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.insert": "插入",
     "toolbar.format.bold": "加粗",
     "toolbar.format.italic": "斜体",
+    "toolbar.format.strikethrough": "删除线",
     "toolbar.format.link": "链接",
     "toolbar.format.code": "代码",
     "toolbar.format.quote": "引用",
@@ -261,6 +264,7 @@ export const translations: Record<Locale, LocaleDictionary> = {
     "toolbar.insert": "挿入",
     "toolbar.format.bold": "太字",
     "toolbar.format.italic": "斜体",
+    "toolbar.format.strikethrough": "取り消し線",
     "toolbar.format.link": "リンク",
     "toolbar.format.code": "コード",
     "toolbar.format.quote": "引用",

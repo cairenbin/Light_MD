@@ -16,13 +16,14 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Multi-draft persistence and session restore across app restarts.
 - Light and dark themes.
 - Proportional document zoom.
+- Editor font family selection from OS-available fonts, plus editor font size control from Settings.
 - Toolbar `Insert` snippets for block-level Markdown structures.
 - KaTeX math rendering for inline (`$...$`) and display (`$$...$$`) formulas.
 - Built-in `Find / Replace` panel with `Match case (Aa)` and `Whole word ("")` toggles.
 - Keyboard-driven find flow (`Cmd/Ctrl+F` for Find, `Cmd/Ctrl+R` for Replace panel toggle).
 - Autocomplete hints with configurable trigger key combinations.
 - `File > Open Recent` with real filename + path history entries (up to 10).
-- Formatting toolbar actions (`Bold`, `Italic`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
+- Formatting toolbar actions (`Bold`, `Italic`, `Strikethrough`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
 - Image paste/drag support: image files are copied into document-scoped `assets/<document-name>/` and inserted as Markdown links.
 - Paste-as-Markdown: clipboard content with an HTML flavor (copied from web pages or rich-text apps) is converted to Markdown on paste while standard paste shortcuts remain native.
 - HTML export inlines local images so exported single-file documents remain viewable offline.

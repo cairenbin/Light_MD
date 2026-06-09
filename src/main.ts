@@ -248,6 +248,7 @@ app.innerHTML = `
           <div class="formatting-tools" role="group" aria-label="Formatting tools">
             <button class="icon-text-button" data-action="format-bold" title="Bold"><strong>B</strong></button>
             <button class="icon-text-button" data-action="format-italic" title="Italic"><em>I</em></button>
+            <button class="icon-text-button" data-action="format-strikethrough" title="Strikethrough"><s>S</s></button>
             <button class="icon-text-button" data-action="format-link" title="Link">🔗</button>
             <button class="icon-text-button" data-action="format-code" title="Code">\`</button>
             <button class="icon-text-button" data-action="format-quote" title="Quote">❝</button>
@@ -976,6 +977,8 @@ function renderLocale() {
   formattingButtons.bold.setAttribute("aria-label", t("toolbar.format.bold"));
   formattingButtons.italic.setAttribute("title", t("toolbar.format.italic"));
   formattingButtons.italic.setAttribute("aria-label", t("toolbar.format.italic"));
+  formattingButtons.strikethrough.setAttribute("title", t("toolbar.format.strikethrough"));
+  formattingButtons.strikethrough.setAttribute("aria-label", t("toolbar.format.strikethrough"));
   formattingButtons.link.setAttribute("title", t("toolbar.format.link"));
   formattingButtons.link.setAttribute("aria-label", t("toolbar.format.link"));
   formattingButtons.code.setAttribute("title", t("toolbar.format.code"));
@@ -1182,6 +1185,9 @@ async function setupMenuListener() {
         break;
       case "format.italic":
         insertController.applyFormatting("italic");
+        break;
+      case "format.strikethrough":
+        insertController.applyFormatting("strikethrough");
         break;
       case "format.link":
         insertController.applyFormatting("link");

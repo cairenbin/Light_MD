@@ -26,6 +26,7 @@ export let autocompleteList!: HTMLUListElement;
 export let formattingButtons!: {
   bold: HTMLButtonElement;
   italic: HTMLButtonElement;
+  strikethrough: HTMLButtonElement;
   link: HTMLButtonElement;
   code: HTMLButtonElement;
   quote: HTMLButtonElement;
@@ -107,6 +108,7 @@ export function initDom(app: HTMLElement): void {
   formattingButtons = {
     bold: requireElement<HTMLButtonElement>("[data-action='format-bold']"),
     italic: requireElement<HTMLButtonElement>("[data-action='format-italic']"),
+    strikethrough: requireElement<HTMLButtonElement>("[data-action='format-strikethrough']"),
     link: requireElement<HTMLButtonElement>("[data-action='format-link']"),
     code: requireElement<HTMLButtonElement>("[data-action='format-code']"),
     quote: requireElement<HTMLButtonElement>("[data-action='format-quote']")

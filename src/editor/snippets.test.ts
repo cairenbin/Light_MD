@@ -133,4 +133,12 @@ describe("buildWrappedEdit", () => {
     const edit = buildWrappedEdit(ctx, "_", "_", "italic");
     expect(edit.text).toBe("_Hello_");
   });
+
+  it("supports strikethrough wrappers", () => {
+    const ctx = makeContext({ selectionStart: 0, selectionEnd: 5, selectedText: "Hello" });
+    const edit = buildWrappedEdit(ctx, "~~", "~~", "removed text");
+    expect(edit.text).toBe("~~Hello~~");
+    expect(edit.selectionStart).toBe(2);
+    expect(edit.selectionEnd).toBe(7);
+  });
 });

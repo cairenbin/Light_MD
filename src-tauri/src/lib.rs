@@ -51,6 +51,7 @@ struct MenuLabels {
     edit_replace: &'static str,
     format_bold: &'static str,
     format_italic: &'static str,
+    format_strikethrough: &'static str,
     format_link: &'static str,
     format_code: &'static str,
     format_quote: &'static str,
@@ -100,6 +101,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             edit_replace: "Replace",
             format_bold: "Bold",
             format_italic: "Italic",
+            format_strikethrough: "Strikethrough",
             format_link: "Link",
             format_code: "Code",
             format_quote: "Blockquote",
@@ -138,6 +140,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             edit_replace: "替换",
             format_bold: "加粗",
             format_italic: "斜体",
+            format_strikethrough: "删除线",
             format_link: "链接",
             format_code: "代码",
             format_quote: "引用块",
@@ -176,6 +179,7 @@ fn menu_labels(locale: MenuLocale) -> MenuLabels {
             edit_replace: "置換",
             format_bold: "太字",
             format_italic: "斜体",
+            format_strikethrough: "取り消し線",
             format_link: "リンク",
             format_code: "コード",
             format_quote: "引用ブロック",
@@ -411,6 +415,7 @@ pub fn run() {
                     | "edit.replace"
                     | "format.bold"
                     | "format.italic"
+                    | "format.strikethrough"
                     | "format.link"
                     | "format.code"
                     | "format.quote"
@@ -520,6 +525,13 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
 
     let format_bold = MenuItem::with_id(app, "format.bold", labels.format_bold, true, Some("CmdOrCtrl+B"))?;
     let format_italic = MenuItem::with_id(app, "format.italic", labels.format_italic, true, Some("CmdOrCtrl+I"))?;
+    let format_strikethrough = MenuItem::with_id(
+        app,
+        "format.strikethrough",
+        labels.format_strikethrough,
+        true,
+        Some("CmdOrCtrl+Shift+X"),
+    )?;
     let format_link =
         MenuItem::with_id(app, "format.link", labels.format_link, true, Some("CmdOrCtrl+Shift+K"))?;
     let format_code = MenuItem::with_id(app, "format.code", labels.format_code, true, Some("CmdOrCtrl+E"))?;
@@ -612,7 +624,14 @@ fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result
         "format.menu",
         labels.formatting_menu,
         true,
-        &[&format_bold, &format_italic, &format_link, &format_code, &format_quote],
+        &[
+            &format_bold,
+            &format_italic,
+            &format_strikethrough,
+            &format_link,
+            &format_code,
+            &format_quote,
+        ],
     )?;
 
     let view_menu = Submenu::with_id_and_items(
@@ -802,6 +821,11 @@ fn set_menu_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> 
                 .map_err(|error| error.to_string())?;
             set_menu_item_text_in_submenu(format_submenu, "format.bold", labels.format_bold)?;
             set_menu_item_text_in_submenu(format_submenu, "format.italic", labels.format_italic)?;
+            set_menu_item_text_in_submenu(
+                format_submenu,
+                "format.strikethrough",
+                labels.format_strikethrough,
+            )?;
             set_menu_item_text_in_submenu(format_submenu, "format.link", labels.format_link)?;
             set_menu_item_text_in_submenu(format_submenu, "format.code", labels.format_code)?;
             set_menu_item_text_in_submenu(format_submenu, "format.quote", labels.format_quote)?;

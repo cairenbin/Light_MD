@@ -19,13 +19,14 @@ All notable changes to this project will be documented in this file.
 - Multi-draft session persistence with automatic restore of open documents and active draft after restart.
 - Insert snippets menu for block-level Markdown structures.
 - Toolbar settings panel with grouped controls for theme, zoom, and autocomplete trigger shortcut.
+- Settings support for editor typography, including OS font family selection and editor font size adjustment.
 - Configurable autocomplete trigger key combinations with per-OS availability filtering.
 - UI localization support with Chinese, Japanese, and English language options.
 - Settings-level language selector with persisted language preference.
 - In-app Find/Replace panel with match status indicator, Replace/Replace All actions, and quick toggle behavior.
 - Match options for Find: `Match case (Aa)` and `Match whole word ("")`.
 - File menu `Open Recent` history with real filename + full path labels (up to 10 entries).
-- Formatting toolbar actions and dedicated native `Formatting` menu (`Bold`, `Italic`, `Link`, `Code`, `Quote`).
+- Formatting toolbar actions and dedicated native `Formatting` menu (`Bold`, `Italic`, `Strikethrough`, `Link`, `Code`, `Quote`).
 - Image paste and drag-to-insert workflow for local files, with markdown link insertion.
 - Paste-as-Markdown: pasting clipboard content that carries an HTML flavor (from web pages or rich-text apps) is converted to Markdown via Turndown + GFM; plain-text and image pastes are unaffected.
 - Document-scoped asset storage (`assets/<document-stem>/...`) for inserted images.
