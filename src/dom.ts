@@ -20,6 +20,8 @@ export let mainArea!: HTMLElement;
 export let sidebarToggle!: HTMLButtonElement;
 export let documentList!: HTMLUListElement;
 export let editor!: HTMLTextAreaElement;
+export let lineNumbers!: HTMLDivElement;
+export let lineNumberMirror!: HTMLDivElement;
 export let preview!: HTMLElement;
 export let autocompletePanel!: HTMLDivElement;
 export let autocompleteList!: HTMLUListElement;
@@ -102,6 +104,8 @@ export function initDom(app: HTMLElement): void {
   sidebarToggle = requireElement<HTMLButtonElement>(".sidebar-toggle");
   documentList = requireElement<HTMLUListElement>(".document-list");
   editor = requireElement<HTMLTextAreaElement>(".editor");
+  lineNumbers = requireElement<HTMLDivElement>(".line-numbers");
+  lineNumberMirror = requireElement<HTMLDivElement>(".line-number-mirror");
   preview = requireElement<HTMLElement>(".preview");
   autocompletePanel = requireElement<HTMLDivElement>(".autocomplete-panel");
   autocompleteList = requireElement<HTMLUListElement>(".autocomplete-list");

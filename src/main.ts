@@ -69,6 +69,8 @@ import {
   formattingButtons,
   initDom,
   insertMenuButton,
+  lineNumberMirror,
+  lineNumbers,
   lineStat,
   mainArea,
   modeButtons,
@@ -357,7 +359,15 @@ app.innerHTML = `
       </aside>
 
       <section class="workspace mode-split" aria-label="Markdown editor">
-        <textarea class="editor" spellcheck="true" aria-label="Markdown source"></textarea>
+        <div class="editor-pane">
+          <div class="line-number-gutter" aria-hidden="true">
+            <div class="line-numbers"></div>
+          </div>
+          <div class="editor-input-shell">
+            <textarea class="editor" spellcheck="true" aria-label="Markdown source"></textarea>
+            <div class="line-number-mirror" aria-hidden="true"></div>
+          </div>
+        </div>
         <article class="preview markdown-body" aria-label="Rendered preview"></article>
         <div class="find-panel hidden" aria-hidden="true">
           <div class="find-row">
@@ -473,9 +483,16 @@ persistDraft();
 
 const resizeListener = () => {
   scheduleTopbarLayoutUpdate();
+  rebuildLineNumbers();
 };
 window.addEventListener("resize", resizeListener);
 globalEventListeners.push({ target: window, type: "resize", listener: resizeListener });
+
+let lineNumberResizeObserver: ResizeObserver | null = null;
+if (typeof ResizeObserver !== "undefined") {
+  lineNumberResizeObserver = new ResizeObserver(() => rebuildLineNumbers());
+  lineNumberResizeObserver.observe(editor);
+}
 
 editor.addEventListener("input", () => {
   state.content = editor.value;
@@ -488,6 +505,7 @@ editor.addEventListener("input", () => {
 });
 
 editor.addEventListener("scroll", () => {
+  syncLineNumberScroll();
   if (programmaticScrollSource === "editor" || state.mode !== "split") {
     autocompleteController.updatePosition();
     return;
@@ -614,6 +632,40 @@ function handleEditorPaste(event: ClipboardEvent): boolean {
   }
 
   return false;
+}
+
+function rebuildLineNumbers(): void {
+  const lines = editor.value.split("\n");
+  const mirrorFragment = document.createDocumentFragment();
+
+  for (const line of lines) {
+    const row = document.createElement("div");
+    row.className = "line-number-mirror-row";
+    row.textContent = line.length > 0 ? line : "\u200b";
+    mirrorFragment.appendChild(row);
+  }
+
+  lineNumberMirror.style.width = `${editor.clientWidth}px`;
+  lineNumberMirror.replaceChildren(mirrorFragment);
+
+  const numberFragment = document.createDocumentFragment();
+  const mirrorRows = lineNumberMirror.querySelectorAll<HTMLElement>(".line-number-mirror-row");
+
+  mirrorRows.forEach((row, index) => {
+    const number = document.createElement("span");
+    number.className = "line-num";
+    number.textContent = String(index + 1);
+    number.style.top = `${row.offsetTop}px`;
+    numberFragment.appendChild(number);
+  });
+
+  lineNumbers.replaceChildren(numberFragment);
+  lineNumbers.style.height = `${Math.max(editor.scrollHeight, lineNumberMirror.scrollHeight)}px`;
+  syncLineNumberScroll();
+}
+
+function syncLineNumberScroll(): void {
+  lineNumbers.style.transform = `translateY(${-editor.scrollTop}px)`;
 }
 
 editor.addEventListener("keyup", (event) => {
@@ -876,6 +928,7 @@ function render() {
   autocompleteController.renderPanel();
   requestAnimationFrame(() => {
     updateTopbarLayout();
+    rebuildLineNumbers();
     syncActiveScroll();
     autocompleteController.updatePosition();
   });
@@ -1373,5 +1426,8 @@ if (import.meta.hot) {
     globalEventListeners.forEach(({ target, type, listener }) => {
       target.removeEventListener(type, listener as EventListener);
     });
+    if (lineNumberResizeObserver) {
+      lineNumberResizeObserver.disconnect();
+    }
   });
 }
