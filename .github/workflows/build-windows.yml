@@ -1,4 +1,4 @@
-name: Build macOS
+name: Build Windows
 
 on:
   workflow_dispatch:
@@ -15,22 +15,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  build-macos:
+  build-windows:
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            target: aarch64-apple-darwin
-            artifact_name: LightMD-macos-arm64
-            asset_suffix: arm64
-          - os: macos-15
-            target: x86_64-apple-darwin
-            artifact_name: LightMD-macos-x64
-            asset_suffix: x64
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -45,9 +32,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Show tool versions
+        shell: bash
         run: |
           node -v
           npm -v
@@ -59,36 +47,31 @@ jobs:
 
       - name: Sync app version from tag
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
 
-      - name: Prepare macOS SDK env (x64 cross target)
-        if: ${{ matrix.target == 'x86_64-apple-darwin' }}
-        run: |
-          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
-          echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun --sdk macosx --show-sdk-platform-version)" >> "$GITHUB_ENV"
-
       - name: Build Tauri bundles
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        shell: bash
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles nsis
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          name: LightMD-windows-x64
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
           if-no-files-found: error
 
       - name: Rename release assets
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p release-assets
-          DMG_SOURCE="$(ls src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)"
-          cp "$DMG_SOURCE" "release-assets/LightMD-${VERSION}-macos-${{ matrix.asset_suffix }}.dmg"
-          APP_DIR="$(ls -d src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app)"
-          tar -czf "release-assets/LightMD-${VERSION}-macos-${{ matrix.asset_suffix }}.app.tar.gz" -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")"
+          EXE_SOURCE="$(ls src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe)"
+          cp "$EXE_SOURCE" "release-assets/LightMD-${VERSION}-windows-x64-setup.exe"
 
       - name: Upload release assets
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
