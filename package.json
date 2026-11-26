@@ -1,6 +1,6 @@
 {
   "name": "light-md-editor",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A lightweight Tauri Markdown editor inspired by Typora.",
   "private": true,
   "license": "GPL-3.0-or-later",

@@ -24,7 +24,7 @@ Light Markdown Editor is built around a quiet, app-first writing experience. It 
 - Autocomplete hints with configurable trigger key combinations.
 - `File > Open Recent` with real filename + path history entries (up to 10).
 - Formatting toolbar actions (`Bold`, `Italic`, `Strikethrough`, `Link`, `Code`, `Quote`) plus native `Formatting` menu support.
-- Image paste/drag support: image files are copied into document-scoped `assets/<document-name>/` and inserted as Markdown links.
+- Image paste/drag support: image files are copied into document-scoped `assets/doc.<hash-of-full-filename>/` and inserted as Markdown links.
 - Paste-as-Markdown: clipboard content with an HTML flavor (copied from web pages or rich-text apps) is converted to Markdown on paste while standard paste shortcuts remain native.
 - HTML export inlines local images so exported single-file documents remain viewable offline.
 - Standard PDF export with block-aware pagination tuned for long Markdown documents.

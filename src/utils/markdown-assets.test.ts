@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
   extractMarkdownImagePaths,
@@ -19,6 +20,11 @@ describe("extractMarkdownImageSources", () => {
     ]);
   });
 
+  it("keeps reference images, nested parentheses and inline HTML", () => {
+    const markdown = '![diagram][fig] ![v](assets/img(2).png) <img src="assets/raw.png">\n\n[fig]: assets/ref.png';
+    expect(extractMarkdownImageSources(markdown)).toEqual(["assets/ref.png", "assets/img(2).png", "assets/raw.png"]);
+  });
+
   it("strips query, fragment, and optional title", () => {
     const markdown = [
       '![a](assets/doc/a.png "title")',
@@ -33,7 +39,7 @@ describe("extractMarkdownImageSources", () => {
 
   it("supports angle-bracket targets and backslash normalization", () => {
     const markdown = "![a](<assets\\\\doc\\\\a.png>)";
-    expect(extractMarkdownImageSources(markdown)).toEqual(["assets/doc/a.png"]);
+    expect(extractMarkdownImageSources(markdown)).toContain("assets/doc/a.png");
   });
 });
 

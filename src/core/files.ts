@@ -602,14 +602,6 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
     file.isDirty = state.isDirty;
   }
 
-  function markSaved(message = t("state.saved")) {
-    state.isDirty = false;
-    syncActiveFile();
-    persistDraft();
-    deps.renderDocuments();
-    deps.renderSaveState(message);
-  }
-
   function createNewDocument() {
     const file = createOpenFile("Untitled.md", "", false);
 
@@ -688,90 +680,124 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
   }
 
   async function saveCurrentDocument(forceDialog = false) {
-    const previousPath = state.nativePath;
+    syncActiveFile();
+    const file = state.openFiles.find((item) => item.id === state.activeFileId);
+    return file && saveFile(file, forceDialog);
+  }
+
+  const pendingSaves = new Map<string, Promise<boolean | undefined>>();
+
+  async function saveFile(file: OpenFile, forceDialog = false) {
+    const { id } = file;
+    const previous = pendingSaves.get(id);
+    const operation = writeSnapshot();
+    pendingSaves.set(id, operation);
     try {
-      const savedFile = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
-        path: forceDialog ? null : state.nativePath,
-        suggestedName: state.fileName,
-        content: state.content
-      });
-
-      if (!savedFile) {
-        return;
-      }
-
-      state.fileName = savedFile.name;
-      state.nativePath = savedFile.path;
-      pushRecentFile(savedFile.path);
-      titleInput.value = state.fileName;
-
-      if (previousPath !== savedFile.path) {
-        if (previousPath && !isPathStillOpenElsewhere(previousPath, state.activeFileId)) {
-          unwatchPath(previousPath);
-        }
-        watchPath(savedFile.path);
-      }
-
-      markSaved();
-      return true;
-    } catch (error) {
-      logError("saveCurrentDocument failed", error);
-      deps.renderSaveState(t("state.saveFailed"));
-      return false;
+      return await operation;
+    } finally {
+      if (pendingSaves.get(id) === operation) pendingSaves.delete(id);
     }
+
+    async function writeSnapshot() {
+      if (previous) await previous;
+      const target = state.openFiles.find((item) => item.id === id);
+      if (!target) return false;
+      const { content, name, nativePath: previousPath } = target;
+      try {
+        const saved = await invoke<TauriSavedMarkdownFile | null>("save_markdown_file", {
+          path: forceDialog ? null : previousPath,
+          suggestedName: name,
+          content
+        });
+        if (!saved) return;
+        pushRecentFile(saved.path);
+        const current = state.openFiles.find((item) => item.id === id);
+        if (!current) return false;
+        const nameUnchanged = current.name === name;
+        current.isDirty = current.content !== content || !nameUnchanged;
+        if (nameUnchanged) current.name = saved.name;
+        current.nativePath = saved.path;
+        if (previousPath !== saved.path) {
+          if (previousPath && !isPathStillOpenElsewhere(previousPath, id)) unwatchPath(previousPath);
+          watchPath(saved.path);
+        }
+        if (state.activeFileId === id) {
+          state.fileName = current.name;
+          state.nativePath = current.nativePath;
+          state.isDirty = current.isDirty;
+          titleInput.value = current.name;
+          deps.renderSaveState();
+        }
+        persistDraft();
+        deps.renderDocuments();
+        return !current.isDirty;
+      } catch (error) {
+        logError("saveCurrentDocument failed", error);
+        if (state.activeFileId === id) deps.renderSaveState(t("state.saveFailed"));
+        return false;
+      }
+    }
+  }
+
+  async function exportBody(content: string, documentPath: string | null) {
+    const sanitizedHtmlBody = DOMPurify.sanitize(renderMarkdownToHtml(content));
+    const htmlContainer = document.createElement("div");
+    htmlContainer.innerHTML = sanitizedHtmlBody;
+    const images = Array.from(htmlContainer.querySelectorAll<HTMLImageElement>("img[src]"));
+
+    for (const image of images) {
+      const source = (image.getAttribute("src") ?? "").trim();
+      if (!source || isExternalImageSource(source)) {
+        continue;
+      }
+
+      const decodedSource = (() => {
+        try {
+          return decodeURIComponent(source);
+        } catch {
+          return source;
+        }
+      })();
+
+      let absolutePath: string | null = null;
+
+      if (documentPath) {
+        absolutePath = resolveDocumentRelativePath(documentPath, decodedSource);
+      }
+
+      if (!absolutePath) {
+        absolutePath = pathFromFileUrl(decodedSource);
+      }
+
+      if (!absolutePath && isAbsoluteNativePath(decodedSource)) {
+        absolutePath = decodedSource.replaceAll("\\", "/");
+      }
+
+      if (!absolutePath || !documentPath) {
+        image.removeAttribute("src");
+        continue;
+      }
+
+      try {
+        const dataUrl = await invoke<string>("read_image_as_data_url", { path: absolutePath, documentPath });
+        image.setAttribute("src", dataUrl);
+      } catch {
+        image.removeAttribute("src");
+      }
+    }
+
+    return htmlContainer.innerHTML;
   }
 
   async function exportCurrentDocumentAsHtml() {
     try {
       const suggestedName = toHtmlExportFileName(state.fileName);
-      const sanitizedHtmlBody = DOMPurify.sanitize(renderMarkdownToHtml(state.content));
-      const htmlContainer = document.createElement("div");
-      htmlContainer.innerHTML = sanitizedHtmlBody;
-      const images = Array.from(htmlContainer.querySelectorAll<HTMLImageElement>("img[src]"));
-
-      for (const image of images) {
-        const source = (image.getAttribute("src") ?? "").trim();
-        if (!source || isExternalImageSource(source)) {
-          continue;
-        }
-
-        const decodedSource = (() => {
-          try {
-            return decodeURIComponent(source);
-          } catch {
-            return source;
-          }
-        })();
-
-        let absolutePath: string | null = null;
-
-        if (state.nativePath) {
-          absolutePath = resolveDocumentRelativePath(state.nativePath, decodedSource);
-        }
-
-        if (!absolutePath) {
-          absolutePath = pathFromFileUrl(decodedSource);
-        }
-
-        if (!absolutePath && isAbsoluteNativePath(decodedSource)) {
-          absolutePath = decodedSource.replaceAll("\\", "/");
-        }
-
-        if (!absolutePath) {
-          continue;
-        }
-
-        try {
-          const dataUrl = await invoke<string>("read_image_as_data_url", { path: absolutePath });
-          image.setAttribute("src", dataUrl);
-        } catch {
-          // Keep original source when inline conversion fails.
-        }
-      }
+      const title = state.fileName;
+      const bodyHtml = await exportBody(state.content, state.nativePath);
 
       const htmlDocument = buildExportHtmlDocument({
-        title: state.fileName,
-        bodyHtml: htmlContainer.innerHTML
+        title,
+        bodyHtml
       });
 
       const exportedFile = await invoke<TauriSavedMarkdownFile | null>("export_html_file", {
@@ -796,54 +822,12 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
   async function exportCurrentDocumentAsPdf() {
     try {
       const suggestedName = toPdfExportFileName(state.fileName);
-      const sanitizedHtmlBody = DOMPurify.sanitize(renderMarkdownToHtml(state.content));
-      const htmlContainer = document.createElement("div");
-      htmlContainer.innerHTML = sanitizedHtmlBody;
-      const images = Array.from(htmlContainer.querySelectorAll<HTMLImageElement>("img[src]"));
-
-      for (const image of images) {
-        const source = (image.getAttribute("src") ?? "").trim();
-        if (!source || isExternalImageSource(source)) {
-          continue;
-        }
-
-        const decodedSource = (() => {
-          try {
-            return decodeURIComponent(source);
-          } catch {
-            return source;
-          }
-        })();
-
-        let absolutePath: string | null = null;
-
-        if (state.nativePath) {
-          absolutePath = resolveDocumentRelativePath(state.nativePath, decodedSource);
-        }
-
-        if (!absolutePath) {
-          absolutePath = pathFromFileUrl(decodedSource);
-        }
-
-        if (!absolutePath && isAbsoluteNativePath(decodedSource)) {
-          absolutePath = decodedSource.replaceAll("\\", "/");
-        }
-
-        if (!absolutePath) {
-          continue;
-        }
-
-        try {
-          const dataUrl = await invoke<string>("read_image_as_data_url", { path: absolutePath });
-          image.setAttribute("src", dataUrl);
-        } catch {
-          // Keep original source when inline conversion fails.
-        }
-      }
+      const title = state.fileName;
+      const bodyHtml = await exportBody(state.content, state.nativePath);
 
       const pdfBytes = await renderHtmlToPdfBytes({
-        title: state.fileName,
-        bodyHtml: htmlContainer.innerHTML
+        title,
+        bodyHtml
       });
 
       const exportedFile = await invoke<TauriSavedPdfFile | null>("export_pdf_file", {
@@ -1036,30 +1020,13 @@ export function createFilesController(deps: FilesControllerDeps): FilesControlle
       return;
     }
 
-    const activeFileBeforeSave = state.activeFileId;
-
-    if (targetFile.id !== state.activeFileId) {
-      syncActiveFile();
-      activateFile(targetFile.id);
-      deps.render();
+    const request = pendingCloseRequest;
+    syncActiveFile();
+    const didSave = await saveFile(targetFile);
+    if (didSave && pendingCloseRequest === request && !targetFile.isDirty) {
+      closeConfirmDialog();
+      closeOpenFile(targetFile.id);
     }
-
-    const didSave = await saveCurrentDocument();
-
-    if (!didSave) {
-      if (activeFileBeforeSave !== state.activeFileId) {
-        const previousFile = state.openFiles.find((item) => item.id === activeFileBeforeSave);
-        if (previousFile) {
-          activateFile(previousFile.id);
-          deps.render();
-        }
-      }
-      return;
-    }
-
-    const fileId = pendingCloseRequest.fileId;
-    closeConfirmDialog();
-    closeOpenFile(fileId);
   }
 
   return {

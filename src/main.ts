@@ -988,7 +988,7 @@ async function rewritePreviewImageSources() {
     }
 
     tasks.push(
-      invoke<string>("read_image_as_data_url", { path: absolutePath })
+      invoke<string>("read_image_as_data_url", { path: absolutePath, documentPath: state.nativePath })
         .then((dataUrl) => {
           if (previewRewriteSequence !== sequence) {
             return;

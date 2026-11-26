@@ -3,7 +3,9 @@ mod watcher;
 use serde::Serialize;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
-use std::io::Read;
+use std::io::{self, Read, Write};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::sync::LazyLock;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use base64::Engine;
@@ -863,6 +865,30 @@ fn set_menu_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> 
     Ok(())
 }
 
+fn atomic_write(path: &Path, write: impl FnOnce(&mut fs::File) -> io::Result<()>) -> io::Result<()> {
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    let permissions = match fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() => {
+            // Check write access even though rename itself only requires directory access.
+            fs::OpenOptions::new().write(true).open(path)?;
+            Some(meta.permissions())
+        }
+        Ok(_) => return Err(io::Error::other("Expected a regular document file")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
+    write(temp.as_file_mut())?;
+    if let Some(mode) = permissions {
+        temp.as_file().set_permissions(mode)?;
+    }
+    temp.as_file().sync_all()?;
+    temp.persist(path)?;
+    #[cfg(unix)]
+    fs::File::open(parent)?.sync_all()?;
+    Ok(())
+}
+
 #[tauri::command]
 fn save_markdown_file(
     path: Option<String>,
@@ -871,11 +897,7 @@ fn save_markdown_file(
     watcher_state: State<Arc<WatcherState>>,
 ) -> Result<Option<SavedMarkdownFile>, String> {
     let path = match path {
-        Some(path) if !path.trim().is_empty() => {
-            let path_buf = PathBuf::from(path);
-            validate_path_for_write(&path_buf)?;
-            path_buf
-        }
+        Some(path) if !path.trim().is_empty() => PathBuf::from(path),
         _ => {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("Markdown", &["md", "markdown", "txt"])
@@ -889,7 +911,8 @@ fn save_markdown_file(
         }
     };
 
-    fs::write(&path, content).map_err(|error| error.to_string())?;
+    validate_path_for_write(&path)?;
+    atomic_write(&path, |file| file.write_all(content.as_bytes())).map_err(|error| error.to_string())?;
 
     watcher::note_self_write(&watcher_state, &path);
 
@@ -1261,6 +1284,30 @@ fn image_extension_from_url(url: &str) -> Option<&'static str> {
         .copied()
 }
 
+// Conservative exclusions from the IANA special-purpose registries, including
+// IPv6 transition ranges. Only conventional global unicast is used for images.
+fn public_image_address(ip: IpAddr) -> bool {
+    static EXCLUDED: LazyLock<Vec<ipnet::IpNet>> = LazyLock::new(|| [
+        "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+        "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.31.196.0/24",
+        "192.52.193.0/24", "192.88.99.0/24", "192.168.0.0/16", "192.175.48.0/24",
+        "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4",
+        "240.0.0.0/4", "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20",
+    ].iter().map(|net| net.parse().expect("valid network prefix")).collect());
+    if let IpAddr::V6(v6) = ip {
+        if v6.segments()[0] >> 13 != 1 { return false; } // 2000::/3
+    }
+    !EXCLUDED.iter().any(|net| net.contains(&ip))
+}
+
+fn resolve_public_image_host(host: &str) -> io::Result<Vec<SocketAddr>> {
+    let addresses: Vec<_> = host.to_socket_addrs()?.collect();
+    if addresses.is_empty() || addresses.iter().any(|addr| !public_image_address(addr.ip())) {
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "Expected a public image host"));
+    }
+    Ok(addresses)
+}
+
 /// Downloads a remote http(s) image into the document's scoped assets folder.
 ///
 /// The request is made from the Rust process, so it bypasses the webview CSP
@@ -1279,6 +1326,8 @@ fn download_remote_image(
     }
 
     let agent = ureq::AgentBuilder::new()
+        .try_proxy_from_env(false)
+        .resolver(resolve_public_image_host)
         .timeout_connect(std::time::Duration::from_secs(15))
         .timeout_read(std::time::Duration::from_secs(30))
         .build();
@@ -1318,10 +1367,20 @@ fn download_remote_image(
 }
 
 #[tauri::command]
-fn read_image_as_data_url(path: String) -> Result<String, String> {
+fn read_image_as_data_url(document_path: String, path: String) -> Result<String, String> {
     let image_path = PathBuf::from(path);
-    if !image_path.exists() {
-        return Err("Image does not exist".to_string());
+    let document = Path::new(&document_path);
+    let parent = document.parent().ok_or("Document has no directory")?;
+    let relative = image_path.strip_prefix(parent).map_err(|_| "Image is outside the document directory")?;
+    if relative.components().any(|part| part == std::path::Component::ParentDir) {
+        return Err("Image is outside the document directory".into());
+    }
+    validate_path_for_read(document)?;
+    let document = document.canonicalize().map_err(|error| error.to_string())?;
+    let directory = document.parent().ok_or("Document has no directory")?;
+    let resolved = image_path.canonicalize().map_err(|error| error.to_string())?;
+    if !resolved.starts_with(directory) {
+        return Err("Image is outside the document directory".into());
     }
     if !has_allowed_image_extension(&image_path) {
         return Err("Unsupported image file type".to_string());
@@ -1335,7 +1394,7 @@ fn read_image_as_data_url(path: String) -> Result<String, String> {
         return Err("Not a regular file".to_string());
     }
 
-    let bytes = fs::read(&image_path).map_err(|error| error.to_string())?;
+    let bytes = fs::read(&resolved).map_err(|error| error.to_string())?;
     let mime = mime_type_for_image_path(&image_path);
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{mime};base64,{encoded}"))
@@ -1349,7 +1408,7 @@ fn clean_unused_assets_for_document(
     let markdown_path = PathBuf::from(document_path);
     validate_path_for_write(&markdown_path)?;
 
-    let (document_dir, scoped_assets_dir, scoped_assets_prefix) =
+    let (document_dir, scoped_assets_dir, _) =
         resolve_document_asset_scope(&markdown_path)?;
 
     if !scoped_assets_dir.exists() {
@@ -1369,7 +1428,8 @@ fn clean_unused_assets_for_document(
 
     let mut referenced_absolute: HashSet<PathBuf> = HashSet::new();
     for source in referenced_sources {
-        if let Some(path) = resolve_referenced_asset_path(&document_dir, &source, &scoped_assets_dir, &scoped_assets_prefix) {
+        let candidate = document_dir.join(source.replace('\\', "/"));
+        if let Ok(path) = candidate.canonicalize() {
             referenced_absolute.insert(path);
         }
     }
@@ -1384,7 +1444,7 @@ fn clean_unused_assets_for_document(
             continue;
         }
 
-        if !referenced_absolute.contains(&entry_path) {
+        if !referenced_absolute.contains(&entry_path.canonicalize().map_err(|error| error.to_string())?) {
             trash::delete(&entry_path).map_err(|error| error.to_string())?;
             moved_files.push(entry_path.to_string_lossy().into_owned());
         }
@@ -1497,12 +1557,19 @@ fn resolve_document_asset_scope(markdown_path: &Path) -> Result<(PathBuf, PathBu
         .parent()
         .ok_or_else(|| "Document path does not have a parent directory".to_string())?
         .to_path_buf();
-    let scoped_asset_name = sanitize_asset_segment(
-        markdown_path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .unwrap_or("document"),
-    );
+    use sha2::{Digest, Sha256};
+    let name = markdown_path.file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Invalid document file name".to_string())?;
+    // The dot keeps this namespace disjoint from every legacy sanitized stem.
+    let scoped_asset_name = format!("doc.{:x}", Sha256::digest(name.as_bytes()));
+    for directory in [document_dir.join("assets"), document_dir.join("assets").join(&scoped_asset_name)] {
+        match fs::symlink_metadata(&directory) {
+            Ok(metadata) if !metadata.is_dir() => return Err("Expected a regular assets directory".into()),
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error.to_string()),
+            _ => {}
+        }
+    }
     let scoped_assets_prefix = format!("assets/{}", scoped_asset_name);
     let scoped_assets_dir = document_dir.join("assets").join(&scoped_asset_name);
     Ok((document_dir, scoped_assets_dir, scoped_assets_prefix))
@@ -1524,50 +1591,6 @@ fn sanitize_asset_segment(value: &str) -> String {
     } else {
         trimmed.to_string()
     }
-}
-
-fn looks_like_windows_absolute(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && (bytes[2] == b'/' || bytes[2] == b'\\')
-}
-
-fn resolve_referenced_asset_path(
-    document_dir: &Path,
-    source: &str,
-    scoped_assets_dir: &Path,
-    scoped_assets_prefix: &str,
-) -> Option<PathBuf> {
-    let normalized = source.trim().replace('\\', "/");
-    if normalized.is_empty() {
-        return None;
-    }
-    let lowered = normalized.to_ascii_lowercase();
-    if lowered.starts_with("http:")
-        || lowered.starts_with("https:")
-        || lowered.starts_with("data:")
-        || lowered.starts_with("blob:")
-        || lowered.starts_with("mailto:")
-    {
-        return None;
-    }
-
-    let relative = normalized.trim_start_matches("./");
-    let candidate = if relative.starts_with(scoped_assets_prefix) {
-        document_dir.join(relative)
-    } else if Path::new(relative).is_absolute() || looks_like_windows_absolute(relative) {
-        PathBuf::from(relative)
-    } else {
-        document_dir.join(relative)
-    };
-
-    if !candidate.starts_with(scoped_assets_dir) {
-        return None;
-    }
-
-    Some(candidate)
 }
 
 fn mime_type_for_image_path(path: &Path) -> &'static str {
@@ -1628,4 +1651,76 @@ fn set_menu_item_text_in_submenu<R: tauri::Runtime>(
         return Ok(());
     };
     menu_item.set_text(text).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod asset_scope_tests {
+    use super::*;
+
+    #[test]
+    fn scopes_include_unicode_and_extension_and_exclude_legacy_names() {
+        let scopes: HashSet<_> = ["周报.md", "会议.md", "周报.txt", "a b.md", "a-b.md"]
+            .iter()
+            .map(|name| resolve_document_asset_scope(&Path::new("docs").join(name)).unwrap().1)
+            .collect();
+        assert_eq!(scopes.len(), 5);
+        for path in scopes {
+            let name = path.file_name().unwrap().to_str().unwrap();
+            assert_ne!(name, sanitize_asset_segment(name));
+        }
+    }
+}
+
+#[cfg(test)]
+mod document_safety_tests {
+    use super::*;
+
+    #[test]
+    fn atomic_save_only_replaces_a_complete_document() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "original").unwrap();
+        let failed = atomic_write(&path, |file| {
+            file.write_all(b"partial")?;
+            Err(io::Error::other("interrupted"))
+        });
+        assert!(failed.is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"original");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+        atomic_write(&path, |file| file.write_all(b"complete")).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"complete");
+    }
+
+    #[test]
+    fn image_reads_are_scoped_to_the_document() {
+        let dir = tempfile::tempdir().unwrap();
+        let doc_dir = dir.path().join("docs");
+        fs::create_dir(&doc_dir).unwrap();
+        let document = doc_dir.join("note.md");
+        fs::write(&document, "").unwrap();
+        let read = |path: PathBuf| read_image_as_data_url(
+            document.to_str().unwrap().into(), path.to_str().unwrap().into()
+        );
+        for parent in [doc_dir.as_path(), dir.path()] {
+            fs::write(parent.join("photo.png"), b"fixture").unwrap();
+        }
+        assert!(read(doc_dir.join("photo.png")).is_ok());
+        assert!(read(doc_dir.join("../photo.png")).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.path(), doc_dir.join("linked")).unwrap();
+            assert!(read(doc_dir.join("linked/photo.png")).is_err());
+        }
+    }
+
+    #[test]
+    fn downloads_only_connect_to_public_addresses() {
+        for host in ["127.0.0.1:80", "10.0.0.1:80", "169.254.1.1:80", "100.64.0.1:80",
+                     "[::1]:80", "[::ffff:127.0.0.1]:80", "[fc00::1]:80", "[2002::1]:80"] {
+            assert!(resolve_public_image_host(host).is_err(), "{host}");
+        }
+        for host in ["1.1.1.1:443", "[2606:4700:4700::1111]:443"] {
+            assert_eq!(resolve_public_image_host(host).unwrap().len(), 1);
+        }
+    }
 }

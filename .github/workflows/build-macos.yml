@@ -61,7 +61,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
 
       - name: Prepare macOS SDK env (x64 cross target)
@@ -69,6 +69,9 @@ jobs:
         run: |
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
           echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun --sdk macosx --show-sdk-platform-version)" >> "$GITHUB_ENV"
+
+      - name: Run native regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Build Tauri bundles
         run: npm run tauri build -- --target ${{ matrix.target }}

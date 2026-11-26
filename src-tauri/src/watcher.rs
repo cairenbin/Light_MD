@@ -128,10 +128,11 @@ pub fn watch(state: &WatcherState, path: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    debouncer
-        .watcher()
-        .watch(&canonical, RecursiveMode::NonRecursive)
-        .map_err(|error| error.to_string())?;
+    let parent = canonical.parent().ok_or("Document has no directory")?;
+    if !watched.iter().any(|file| file.parent() == Some(parent)) {
+        debouncer.watcher().watch(parent, RecursiveMode::NonRecursive)
+            .map_err(|error| error.to_string())?;
+    }
 
     watched.insert(canonical);
     Ok(())
@@ -148,7 +149,11 @@ pub fn unwatch(state: &WatcherState, path: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    let _ = debouncer.watcher().unwatch(&canonical);
+    if let Some(parent) = canonical.parent() {
+        if !watched.iter().any(|file| file.parent() == Some(parent)) {
+            let _ = debouncer.watcher().unwatch(parent);
+        }
+    }
     Ok(())
 }
 

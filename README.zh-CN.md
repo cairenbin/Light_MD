@@ -24,7 +24,7 @@ Light Markdown Editor 聚焦安静、应用优先的写作体验。它定位为�
 - 自动完成提示与可配置触发组合键。
 - `File > Open Recent` 最近文件历史（真实文件名 + 路径，最多 10 条）。
 - 格式化工具按钮（`Bold`、`Italic`、`Strikethrough`、`Link`、`Code`、`Quote`）以及原生 `Formatting` 菜单支持。
-- 支持图片粘贴 / 拖入：图片会写入当前文档作用域目录 `assets/<文档名>/`，并自动插入 Markdown 图片链接。
+- 支持图片粘贴 / 拖入：图片会写入当前文档作用域目录 `assets/doc.<完整文件名的哈希>/`，并自动插入 Markdown 图片链接。
 - 粘贴为 Markdown：当剪贴板包含 HTML 内容（从网页或富文本应用复制）时，粘贴会自动转换为 Markdown，同时保留系统原生粘贴快捷键体验。
 - HTML 导出会内嵌本地图片，导出的单文件可离线直接查看。
 - 标准 PDF 导出，包含面向长文档的块级分页优化。

@@ -1,3 +1,5 @@
+import { renderMarkdownToHtml } from "../editor/markdown-renderer";
+
 const MARKDOWN_IMAGE_PATTERN = /!\[[^\]]*]\(([^)\n]+)\)/g;
 
 interface ParsedImageTarget {
@@ -46,19 +48,21 @@ function parseImageTarget(raw: string): ParsedImageTarget | null {
  * already on disk (asset cleanup), where query/fragment are noise.
  */
 export function extractMarkdownImageSources(markdown: string): string[] {
-  const results: string[] = [];
-  const seen = new Set<string>();
-
-  for (const target of iterateImageTargets(markdown)) {
-    const source = stripQueryAndFragment(target.path);
-    if (!source || seen.has(source)) {
-      continue;
+  const template = document.createElement("template");
+  template.innerHTML = renderMarkdownToHtml(markdown);
+  const sources = new Set<string>();
+  for (const image of template.content.querySelectorAll("img[src]")) {
+    const raw = stripQueryAndFragment(image.getAttribute("src") ?? "");
+    if (!raw) continue;
+    sources.add(raw);
+    try {
+      const decoded = decodeURIComponent(raw).replaceAll("\\", "/");
+      if (decoded !== raw) sources.add(decoded);
+    } catch {
+      // A literal percent sign is valid in a local file name.
     }
-    seen.add(source);
-    results.push(source);
   }
-
-  return results;
+  return [...sources];
 }
 
 /**

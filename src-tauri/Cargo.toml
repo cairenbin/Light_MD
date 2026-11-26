@@ -1,6 +1,6 @@
 [package]
 name = "light-md-editor"
-version = "0.1.0"
+version = "0.1.2"
 description = "A lightweight Markdown editor"
 authors = ["Renbin.Cai"]
 license = "GPL-3.0-or-later"
@@ -23,6 +23,9 @@ notify-debouncer-mini = "0.4"
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 log = "0.4"
+tempfile = "3"
+ipnet = "2"
+sha2 = "0.10"
 base64 = "0.22"
 trash = "5"
 ureq = { version = "2", features = ["tls"] }

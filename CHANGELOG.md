@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.2 - 2026-11-26
+
+- Keep pending saves associated with their original tab and preserve edits made during a save.
+- Isolate new image directories by document and preserve reference-style images during cleanup.
+- Restrict local image reads to the document directory and remote image downloads to public addresses.
+- Save documents atomically and continue watching them after replacement.
+
 ## 0.1.0-alpha - Unreleased
 
 ### Added
